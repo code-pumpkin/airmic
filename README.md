@@ -104,7 +104,7 @@ Press **Ctrl+A** in the TUI:
 | API Key | your key for the selected provider |
 | Model | leave blank for the default (`gpt-4o-mini` / `claude-3-5-haiku-latest` / `gemini-1.5-flash`) |
 | Prompt | customise the rewrite instruction |
-| Space | toggle AI on/off |
+| Ctrl+Space | toggle AI on/off |
 
 The phone's **🤖 AI** button also toggles it on the fly.
 
