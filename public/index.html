@@ -204,6 +204,8 @@
     let deviceToken = localStorage.getItem(STORAGE_KEY);
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
+    // If served from relay, window.RELAY_TOKEN is injected by relay.js
+    const RELAY_MODE  = typeof window.RELAY_TOKEN !== 'undefined';
     let ws, authed = false;
 
     function connectWS() {
@@ -212,8 +214,12 @@
       wsStatusEl.className = 'authing';
 
       ws.onopen = () => {
-        // send auth immediately
-        ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+        if (RELAY_MODE) {
+          // relay handshake: register as client first, auth follows on 'connected' ack
+          ws.send(JSON.stringify({ type: 'client-connect', token: window.RELAY_TOKEN }));
+        } else {
+          ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+        }
       };
 
       ws.onclose = () => {
@@ -225,6 +231,12 @@
 
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
+
+        // relay ack — now send auth
+        if (msg.type === 'connected') {
+          ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+          return;
+        }
 
         if (msg.type === 'auth') {
           if (msg.status === 'approved') {

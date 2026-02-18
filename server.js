@@ -3,10 +3,38 @@ const fs       = require('fs');
 const path     = require('path');
 const { exec } = require('child_process');
 const crypto   = require('crypto');
+const { EventEmitter } = require('events');
 const WebSocket = require('ws');
 const express  = require('express');
 const blessed  = require('blessed');
 const QRCode   = require('qrcode');
+
+// ─── VirtualWS ────────────────────────────────────────────────────────────────
+// Wraps a relay-proxied client so it looks identical to a real ws to handleConnection()
+class VirtualWS extends EventEmitter {
+  constructor(clientId, relayWs) {
+    super();
+    this.clientId   = clientId;
+    this._relayWs   = relayWs;
+    this.readyState = WebSocket.OPEN;
+    this._queue     = [];
+    this._running   = false;
+  }
+  send(data) {
+    if (this.readyState !== WebSocket.OPEN) return;
+    this._relayWs.send(JSON.stringify({ type: 'host-message', clientId: this.clientId, data }));
+  }
+  close() {
+    if (this.readyState === WebSocket.CLOSED) return;
+    this.readyState = WebSocket.CLOSED;
+    this._relayWs.send(JSON.stringify({ type: 'host-close', clientId: this.clientId }));
+    this.emit('close');
+  }
+  // called by relay client when a message arrives for this virtual socket
+  _receive(data) {
+    this.emit('message', data);
+  }
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +62,8 @@ const DEFAULT_CONFIG = {
   clipboardMode: false,
   wordReplacements: {},
   voiceCommandsExtra: {},
+  relayUrl: '',              // e.g. "wss://yourrelay.example.com:4001"
+  relayRejectUnauthorized: true, // false for self-signed certs (dev only)
 };
 
 let config   = { ...DEFAULT_CONFIG, ...loadConfig() };
@@ -97,6 +127,7 @@ let totalPhrases   = 0;
 let totalWords     = 0;
 let localIP        = 'localhost';
 let startTime      = Date.now();
+let renderQR       = () => {}; // assigned after server starts
 
 const phoneStates  = new Map(); // ws -> { language, pttMode, clipboardMode, authed, deviceToken, pin }
 const pendingPins  = new Map(); // pin -> ws  (waiting for TUI approval)
@@ -160,7 +191,7 @@ const liveBox = blessed.box({
 
 const bottomBar = blessed.box({
   bottom: 0, left: 0, width: '100%', height: 1, tags: true,
-  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
+  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^E]{/cyan-bg}{/black-fg} Relay URL  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
   style: { fg: '#aaaaaa', bg: '#111' },
 });
 
@@ -186,7 +217,8 @@ function updateStatus() {
     `{#444-fg}   /${config.urlToken}{/#444-fg}\n\n` +
     `${badge('Status  ', paused ? '⏸  PAUSED' : '▶  ACTIVE', paused ? 'red' : 'green')}\n` +
     `${badge('Uptime  ', fmtUptime(), '#888888')}\n` +
-    `${badge('Clients ', connectedCount > 0 ? `${connectedCount} connected` : 'none', connectedCount > 0 ? 'cyan' : '#555555')}`
+    `${badge('Clients ', connectedCount > 0 ? `${connectedCount} connected` : 'none', connectedCount > 0 ? 'cyan' : '#555555')}\n` +
+    `${badge('Relay   ', relayStatus === 'connected' ? '⬤ connected' : relayStatus === 'connecting' ? '… connecting' : relayStatus === 'error' ? '✖ retrying' : '— disabled', relayStatus === 'connected' ? 'green' : relayStatus === 'connecting' ? 'yellow' : relayStatus === 'error' ? 'red' : '#555555')}`
   );
 
   const states = [...phoneStates.values()].filter(s => s.authed);
@@ -298,11 +330,35 @@ screen.key(['C-q', 'C-c'], () => process.exit());
 screen.key('C-p', () => {
   paused = !paused;
   logPhrase(paused ? 'Paused from keyboard' : 'Resumed from keyboard', 'command');
-  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'paused', value: paused })); });
+  broadcast({ type: 'paused', value: paused });
   updateStatus();
 });
 
 screen.key('C-l', () => { logBox.setContent(''); logPhrase('Log cleared', 'info'); });
+
+screen.key('C-e', () => {
+  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 60, height: 9, border: { type: 'line' }, style: { border: { fg: 'cyan' }, bg: '#111' }, label: ' ⇄  Set Relay URL ', keys: true });
+  blessed.text({ parent: form, top: 1, left: 2, content: 'Relay WSS URL (blank to disable):', style: { fg: '#888' } });
+  const input = blessed.textbox({ parent: form, top: 2, left: 2, width: 54, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.relayUrl || '' });
+  blessed.text({ parent: form, top: 4, left: 2, content: 'e.g. wss://yourserver.com:4001', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 5, left: 2, content: 'Enter to save, Esc to cancel', style: { fg: '#555' } });
+  input.focus();
+  input.key('enter', () => {
+    const val = input.getValue().trim();
+    config.relayUrl = val;
+    saveConfig(config);
+    form.destroy();
+    logPhrase(val ? `Relay URL set: ${val}` : 'Relay disabled', 'command');
+    updateStatus();
+    renderQR();
+    // stop current relay cleanly before reconnecting
+    relayStopped = true;
+    if (relayWs) { try { relayWs.terminate(); } catch {} relayWs = null; }
+    connectRelay();
+  });
+  screen.key('escape', () => { form.destroy(); screen.render(); });
+  screen.render(); input.focus();
+});
 
 screen.key('C-r', () => {
   const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 52, height: 11, border: { type: 'line' }, style: { border: { fg: 'yellow' }, bg: '#111' }, label: ' ✎  Add Word Replacement ', keys: true });
@@ -360,9 +416,9 @@ function wordDiff(onScreen, final) {
 
 function toClipboard(text, cb) { const p = exec('xclip -selection clipboard', cb); p.stdin.write(text); p.stdin.end(); }
 
-// ─── WebSocket ────────────────────────────────────────────────────────────────
+// ─── Shared connection handler (local WSS + relay VirtualWS) ─────────────────
 
-wss.on('connection', (ws, req) => {
+function handleConnection(ws) {
   phoneStates.set(ws, { language: config.language, pttMode: false, clipboardMode: config.clipboardMode, authed: false, deviceToken: null });
 
   ws.on('message', (data) => {
@@ -402,7 +458,7 @@ wss.on('connection', (ws, req) => {
       if (typeof msg.clipboardMode === 'boolean') { state.clipboardMode = msg.clipboardMode; config.clipboardMode = msg.clipboardMode; saveConfig(config); logPhrase(`Clipboard: ${msg.clipboardMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.pttMode === 'boolean')       { state.pttMode = msg.pttMode; logPhrase(`PTT: ${msg.pttMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.language === 'string')       { state.language = msg.language; logPhrase(`Language: ${msg.language}`, 'command'); }
-      if (typeof msg.paused === 'boolean')        { paused = msg.paused; wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'paused', value: paused })); }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
+      if (typeof msg.paused === 'boolean')        { paused = msg.paused; broadcast({ type: 'paused', value: paused }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
       phoneStates.set(ws, state);
       updateStatus();
       return;
@@ -472,7 +528,108 @@ wss.on('connection', (ws, req) => {
     logPhrase('Phone disconnected', 'disconnect');
     updateStatus();
   });
-});
+}
+
+// Local WSS connections
+wss.on('connection', handleConnection);
+
+// ─── Broadcast to all connected clients (local + relay virtual) ───────────────
+
+function broadcast(msg) {
+  const data = JSON.stringify(msg);
+  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
+  virtualClients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
+}
+
+// ─── Relay client ─────────────────────────────────────────────────────────────
+
+let relayStatus    = 'disabled'; // 'disabled' | 'connecting' | 'connected' | 'error'
+let relayWs        = null;
+let relayStopped   = false; // true when we intentionally terminate (prevents auto-reconnect)
+const virtualClients = new Map(); // clientId → VirtualWS
+
+function connectRelay() {
+  if (!config.relayUrl) { relayStatus = 'disabled'; updateStatus(); return; }
+
+  relayStopped = false;
+  relayStatus  = 'connecting';
+  updateStatus();
+
+  const url = config.relayUrl.replace(/\/$/, '');
+  relayWs = new WebSocket(url, { rejectUnauthorized: config.relayRejectUnauthorized !== false });
+
+  relayWs.on('open', () => {
+    relayStatus = 'connected';
+    relayWs.send(JSON.stringify({ type: 'host-register', token: config.urlToken }));
+    logPhrase(`Relay connected — ${url}`, 'connect');
+    updateStatus();
+    renderQR();
+
+    // keepalive — ping relay every 25s, terminate if no pong within 10s
+    relayWs.isAlive = true;
+    relayWs.on('pong', () => { relayWs.isAlive = true; clearTimeout(relayWs._pongTimeout); });
+    relayWs._pingTimer = setInterval(() => {
+      if (!relayWs.isAlive) { relayWs.terminate(); return; }
+      relayWs.isAlive = false;
+      relayWs.ping();
+      relayWs._pongTimeout = setTimeout(() => { if (!relayWs.isAlive) relayWs.terminate(); }, 10000);
+    }, 25000);
+  });
+
+  relayWs.on('message', (data) => {
+    let msg;
+    try { msg = JSON.parse(data.toString()); } catch { return; }
+
+    if (msg.type === 'registered') {
+      logPhrase('Relay: host registered, waiting for phones', 'info');
+      return;
+    }
+
+    if (msg.type === 'error') {
+      logPhrase(`Relay error: ${msg.reason}`, 'warn');
+      return;
+    }
+
+    if (msg.type === 'client-connect') {
+      const vws = new VirtualWS(msg.clientId, relayWs);
+      virtualClients.set(msg.clientId, vws);
+      handleConnection(vws);
+      return;
+    }
+
+    if (msg.type === 'client-message') {
+      const vws = virtualClients.get(msg.clientId);
+      if (vws) vws._receive(msg.data);
+      return;
+    }
+
+    if (msg.type === 'client-disconnect') {
+      const vws = virtualClients.get(msg.clientId);
+      if (vws) { vws.readyState = WebSocket.CLOSED; vws.emit('close'); }
+      virtualClients.delete(msg.clientId);
+      return;
+    }
+  });
+
+  relayWs.on('close', () => {
+    clearInterval(relayWs._pingTimer);
+    clearTimeout(relayWs._pongTimeout);
+    relayStatus = 'error';
+    virtualClients.forEach(vws => { vws.readyState = WebSocket.CLOSED; vws.emit('close'); });
+    virtualClients.clear();
+    renderQR();
+    if (relayStopped) return;
+    logPhrase('Relay disconnected — retrying in 5s', 'warn');
+    updateStatus();
+    setTimeout(connectRelay, 5000);
+  });
+
+  relayWs.on('error', (err) => {
+    relayStatus = 'error';
+    logPhrase(`Relay error: ${err.message}`, 'warn');
+    updateStatus();
+  });
+}
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
@@ -485,16 +642,34 @@ server.listen(config.port, '0.0.0.0', () => {
 
   updateStatus();
 
-  const url = `https://${localIP}:${config.port}/${config.urlToken}`;
+  const localUrl = `https://${localIP}:${config.port}/${config.urlToken}`;
 
-  // Render QR using block characters for crisp display
-  QRCode.toString(url, { type: 'terminal', small: true }, (err, qrStr) => {
-    if (!err) { qrBox.setContent(qrStr); screen.render(); }
-  });
+  renderQR = function() {
+    const displayUrl = (config.relayUrl && relayStatus === 'connected')
+      ? config.relayUrl.replace(/^wss:\/\//, 'https://').replace(/\/$/, '') + `/${config.urlToken}`
+      : localUrl;
+    qrLabel.setContent(`{#555555-fg}SCAN TO CONNECT${config.relayUrl ? ' (relay)' : ' (local)'}{/#555555-fg}`);
+    QRCode.toString(displayUrl, { type: 'terminal', small: true }, (err, qrStr) => {
+      if (!err) { qrBox.setContent(qrStr); screen.render(); }
+    });
+  };
 
-  logPhrase(`Server started — ${url}`, 'connect');
+  // Re-render QR whenever relay status changes
+  let _lastRelayStatus = relayStatus;
+  setInterval(() => {
+    if (relayStatus !== _lastRelayStatus) { _lastRelayStatus = relayStatus; renderQR(); }
+  }, 1000);
+
+  renderQR();
+
+  logPhrase(`Server started — ${localUrl}`, 'connect');
   logPhrase('Scan QR or open URL on your phone', 'info');
+  if (config.relayUrl) logPhrase(`Relay URL set — connecting to ${config.relayUrl}`, 'info');
+  else logPhrase('No relay configured — local only (set relayUrl in config.json)', 'info');
   screen.render();
+
+  // Start relay connection after local server is up
+  connectRelay();
 });
 
 process.on('exit', () => { try { screen.destroy(); } catch {} });
