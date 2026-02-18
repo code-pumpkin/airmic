@@ -245,6 +245,18 @@
           return;
         }
 
+        // relay: too many clients in room — stop retrying
+        if (msg.type === 'error' && msg.reason === 'room-full') {
+          wsStatusEl.textContent = 'room full';
+          wsStatusEl.className = 'disconnected';
+          // override reconnect to show permanent error
+          ws.onclose = () => {
+            wsStatusEl.textContent = 'room full — reload to retry';
+            wsStatusEl.className = 'disconnected';
+          };
+          return;
+        }
+
         if (msg.type === 'auth') {
           if (msg.status === 'approved') {
             authed = true;
