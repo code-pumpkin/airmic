@@ -37,10 +37,15 @@ if command -v certbot &>/dev/null; then
 else
   echo "    No certbot — generating self-signed cert (dev only)..."
   mkdir -p "$INSTALL_DIR/certs"
+  # Detect public IP for SAN so browsers accept the cert
+  PUBLIC_IP=$(curl -sf https://api.ipify.org 2>/dev/null || echo "")
+  SAN="DNS:localhost,IP:127.0.0.1"
+  if [ -n "$PUBLIC_IP" ]; then SAN="${SAN},IP:${PUBLIC_IP}"; fi
   openssl req -x509 -newkey rsa:4096 \
     -keyout "$INSTALL_DIR/certs/key.pem" \
     -out    "$INSTALL_DIR/certs/cert.pem" \
-    -days 365 -nodes -subj "/CN=relay"
+    -days 365 -nodes -subj "/CN=relay" \
+    -addext "subjectAltName=${SAN}"
 fi
 
 echo "==> Installing systemd service..."
