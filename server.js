@@ -539,7 +539,7 @@ screen.key('C-a', () => {
   const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 62, height: 20, border: { type: 'line' }, style: { border: { fg: 'green' }, bg: '#111' }, label: ' 🤖  AI Summarize ', keys: true });
   blessed.text({ parent: form, top: 1, left: 2, content: 'Provider:', style: { fg: '#888' } });
   const provLabel = blessed.text({ parent: form, top: 1, left: 12, tags: true, style: { bg: '#111' } });
-  function updateProvLabel() { provLabel.setContent(`{green-fg}${selProvider}{/green-fg}  {#555-fg}[← →]{/#555-fg}`); screen.render(); }
+  function updateProvLabel() { provLabel.setContent(`{green-fg}${selProvider}{/green-fg}  {#555-fg}[Tab here + ←/→, or Ctrl+N to cycle]{/#555-fg}`); screen.render(); }
   updateProvLabel();
   blessed.text({ parent: form, top: 3, left: 2, content: 'API Key:', style: { fg: '#888' } });
   const keyInput = blessed.textbox({ parent: form, top: 4, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiApiKey || '' });
@@ -550,12 +550,16 @@ screen.key('C-a', () => {
   const enabledLabel = blessed.text({ parent: form, top: 12, left: 2, tags: true, style: { bg: '#111' } });
   function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${config.aiEnabled ? 'green' : 'red'}-fg}${config.aiEnabled ? 'enabled' : 'disabled'}{/${config.aiEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
   updateEnabledLabel();
-  blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Ctrl+N to cycle provider, Enter to save, Esc to cancel', style: { fg: '#555' } });
   blessed.text({ parent: form, top: 15, left: 2, content: 'Ctrl+Space to toggle AI on/off', style: { fg: '#555' } });
 
-  // provider cycling with arrow keys
+  // provider cycling — arrow keys work when form is focused, Ctrl+N works from any field
   form.key('right', () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); });
   form.key('left',  () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx - 1 + providers.length) % providers.length]; updateProvLabel(); });
+  const cycleProvider = () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); };
+  keyInput.key('C-n',    cycleProvider);
+  modelInput.key('C-n',  cycleProvider);
+  promptInput.key('C-n', cycleProvider);
 
   keyInput.key('tab',    () => modelInput.focus());
   keyInput.key('enter',  () => modelInput.focus());
@@ -658,13 +662,14 @@ const AI_DEFAULTS = { openai: 'gpt-4o-mini', anthropic: 'claude-3-5-haiku-latest
 
 async function aiSummarize(text) {
   if (!config.aiEnabled || !config.aiApiKey) return text;
+  const input = text.slice(0, 4000); // cap to ~1000 tokens before sending
   const model = config.aiModel || AI_DEFAULTS[config.aiProvider] || AI_DEFAULTS.openai;
   const prompt = config.aiPrompt || DEFAULT_CONFIG.aiPrompt;
   try {
     if (config.aiProvider === 'openai') {
       const res = await getOpenAI().chat.completions.create({
         model,
-        messages: [{ role: 'user', content: `${prompt}\n\n${text}` }],
+        messages: [{ role: 'user', content: `${prompt}\n\n${input}` }],
         max_tokens: 1024,
       });
       return res.choices[0]?.message?.content?.trim() || text;
@@ -673,13 +678,13 @@ async function aiSummarize(text) {
       const res = await getAnthropic().messages.create({
         model,
         max_tokens: 1024,
-        messages: [{ role: 'user', content: `${prompt}\n\n${text}` }],
+        messages: [{ role: 'user', content: `${prompt}\n\n${input}` }],
       });
       return res.content[0]?.text?.trim() || text;
     }
     if (config.aiProvider === 'google') {
       const genModel = getGoogle().getGenerativeModel({ model });
-      const res = await genModel.generateContent(`${prompt}\n\n${text}`);
+      const res = await genModel.generateContent(`${prompt}\n\n${input}`);
       return res.response.text()?.trim() || text;
     }
   } catch (e) {
