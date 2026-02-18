@@ -456,7 +456,9 @@ function safeKey(key) { return String(key).replace(/[^a-zA-Z0-9_\- ]/g, ''); }
 function applyReplacements(text) {
   let out = text;
   for (const [from, to] of Object.entries(config.wordReplacements || {})) {
-    out = out.replace(new RegExp(`\\b${from}\\b`, 'gi'), to);
+    // escape regex special chars in the key so literal strings always match
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), to);
   }
   return out;
 }
@@ -523,6 +525,7 @@ function handleConnection(ws) {
     }
 
     if (paused || !msg.text) return;
+    if (typeof msg.text !== 'string' || msg.text.length > 2000) return; // sanity cap
 
     const queue = ws._queue || (ws._queue = []);
     let running = ws._running || false;
