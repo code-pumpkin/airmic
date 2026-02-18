@@ -455,7 +455,8 @@ screen.key('C-r', () => {
   function onEscR() { form.destroy(); screen.unkey('escape', onEscR); screen.render(); }
   toInput.key('enter', () => {
     screen.unkey('escape', onEscR);
-    const from = fromInput.getValue().trim().toLowerCase(), to = toInput.getValue().trim();
+    const from = fromInput.getValue().trim().toLowerCase().slice(0, 200);
+    const to   = toInput.getValue().trim().slice(0, 500);
     if (from && to) { config.wordReplacements[from] = to; saveConfig(config); logPhrase(`Replacement: "${from}" → "${to}"`, 'command'); }
     form.destroy(); updateStatus();
   });
