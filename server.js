@@ -852,12 +852,13 @@ function handleConnection(ws) {
         aiSummarize(finalText).then(improved => {
           if (improved === finalText) return;
           if (ws.readyState !== WebSocket.OPEN) return;
-          if (ws._aiSeq !== seq) return; // newer phrase already typed — don't clobber it
+          if (ws._aiSeq !== seq) return;
+          const safeImproved = improved.trimStart().slice(0, 4000) + ' ';
           const delCount = Math.min(toType.length, 500);
           enqueue(`xdotool key --clearmodifiers --repeat ${delCount} BackSpace`, true);
-          typeOrClip(improved.trimStart() + ' ');
-          ws._lastPhrase = improved.trimStart() + ' ';
-          ws._lastPhraseLen = ws._lastPhrase.length;
+          typeOrClip(safeImproved);
+          ws._lastPhrase = safeImproved;
+          ws._lastPhraseLen = safeImproved.length;
           logPhrase(`AI (${config.aiProvider}): ${improved}`, 'command');
         }).catch(() => {});
       } else {
