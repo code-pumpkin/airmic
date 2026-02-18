@@ -267,7 +267,11 @@ function updateStatus() {
   const repls = Object.entries(config.wordReplacements || {});
   replBox.setContent(repls.length === 0
     ? '{#444-fg}none{/#444-fg}'
-    : repls.map(([k,v]) => `{cyan-fg}${k}{/cyan-fg} {#555-fg}→{/#555-fg} {white-fg}${v}{/white-fg}`).join('\n')
+    : repls.map(([k,v]) => {
+        const ek = String(k).replace(/[{}]/g, c => c === '{' ? '\\{' : '\\}');
+        const ev = String(v).replace(/[{}]/g, c => c === '{' ? '\\{' : '\\}');
+        return `{cyan-fg}${ek}{/cyan-fg} {#555-fg}→{/#555-fg} {white-fg}${ev}{/white-fg}`;
+      }).join('\n')
   );
 
   screen.render();
