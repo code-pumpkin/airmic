@@ -337,6 +337,7 @@ function _showPinPopup(pin, ws) {
     saveSessions(sessions);
     const state = phoneStates.get(ws);
     if (state) { state.authed = true; state.deviceToken = deviceToken; }
+    connectedCount++;
     if (ws.readyState === WebSocket.OPEN)
       ws.send(JSON.stringify({ type: 'auth', status: 'approved', deviceToken }));
     logPhrase(`Device approved — token saved`, 'auth');
