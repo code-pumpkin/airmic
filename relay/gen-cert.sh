@@ -4,5 +4,6 @@
 set -e
 mkdir -p certs
 openssl req -x509 -newkey rsa:4096 -keyout certs/key.pem -out certs/cert.pem \
-  -days 365 -nodes -subj "/CN=relay"
+  -days 365 -nodes -subj "/CN=relay" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 echo "Done — certs/key.pem and certs/cert.pem generated"
