@@ -94,6 +94,12 @@ if (!config.urlToken || !/^[a-f0-9]{8,64}$/.test(config.urlToken)) {
 if (typeof config.language !== 'string' || !/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/.test(config.language)) {
   config.language = DEFAULT_CONFIG.language;
 }
+// Sanitize boolean fields
+if (typeof config.clipboardMode !== 'boolean') config.clipboardMode = false;
+if (typeof config.relayRejectUnauthorized !== 'boolean') config.relayRejectUnauthorized = true;
+// Sanitize object fields — discard if not plain objects
+if (typeof config.wordReplacements !== 'object' || Array.isArray(config.wordReplacements) || !config.wordReplacements) config.wordReplacements = {};
+if (typeof config.voiceCommandsExtra !== 'object' || Array.isArray(config.voiceCommandsExtra) || !config.voiceCommandsExtra) config.voiceCommandsExtra = {};
 
 // Prune sessions older than 90 days
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
