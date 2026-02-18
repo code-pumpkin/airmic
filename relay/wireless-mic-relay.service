@@ -9,8 +9,10 @@ ExecStart=/usr/bin/node relay.js
 Restart=always
 RestartSec=5
 Environment=PORT=4001
-# Uncomment to override cert directory:
+# Uncomment and set these as needed:
+# Environment=RELAY_SECRET=your-strong-secret-here
 # Environment=CERT_DIR=/etc/letsencrypt/live/yourdomain.com
+# Environment=PUBLIC=/opt/wireless-mic-relay/public
 
 [Install]
 WantedBy=multi-user.target
