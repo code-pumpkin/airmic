@@ -535,7 +535,8 @@ screen.key('C-e', () => {
 
 screen.key('C-a', () => {
   const providers = ['openai', 'anthropic', 'google'];
-  let selProvider = config.aiProvider || 'openai';
+  let selProvider   = config.aiProvider || 'openai';
+  let pendingEnabled = config.aiEnabled;
   const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 62, height: 20, border: { type: 'line' }, style: { border: { fg: 'green' }, bg: '#111' }, label: ' 🤖  AI Summarize ', keys: true });
   blessed.text({ parent: form, top: 1, left: 2, content: 'Provider:', style: { fg: '#888' } });
   const provLabel = blessed.text({ parent: form, top: 1, left: 12, tags: true, style: { bg: '#111' } });
@@ -548,7 +549,7 @@ screen.key('C-a', () => {
   blessed.text({ parent: form, top: 9, left: 2, content: 'Prompt:', style: { fg: '#888' } });
   const promptInput = blessed.textbox({ parent: form, top: 10, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiPrompt || DEFAULT_CONFIG.aiPrompt });
   const enabledLabel = blessed.text({ parent: form, top: 12, left: 2, tags: true, style: { bg: '#111' } });
-  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${config.aiEnabled ? 'green' : 'red'}-fg}${config.aiEnabled ? 'enabled' : 'disabled'}{/${config.aiEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
+  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${pendingEnabled ? 'green' : 'red'}-fg}${pendingEnabled ? 'enabled' : 'disabled'}{/${pendingEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
   updateEnabledLabel();
   blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Ctrl+N to cycle provider, Enter to save, Esc to cancel', style: { fg: '#555' } });
   blessed.text({ parent: form, top: 15, left: 2, content: 'Ctrl+Space to toggle AI on/off', style: { fg: '#555' } });
@@ -566,12 +567,13 @@ screen.key('C-a', () => {
   modelInput.key('tab',  () => promptInput.focus());
   modelInput.key('enter',() => promptInput.focus());
   promptInput.key('tab', () => keyInput.focus());
-  // Ctrl+Space toggles AI enabled — works even when a textbox has focus
-  form.key('C-space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
+  // Ctrl+Space toggles pending state only — not committed until save
+  form.key('C-space', () => { pendingEnabled = !pendingEnabled; updateEnabledLabel(); });
 
   function onEscA() { form.destroy(); screen.unkey('escape', onEscA); screen.render(); }
   function save() {
     screen.unkey('escape', onEscA);
+    config.aiEnabled  = pendingEnabled;
     config.aiProvider = selProvider;
     config.aiApiKey   = keyInput.getValue().trim().slice(0, 200);
     config.aiModel    = modelInput.getValue().trim().slice(0, 100);

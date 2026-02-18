@@ -2,3 +2,4 @@ node_modules/
 certs/
 sessions.json
 config.json
+*-session.md
