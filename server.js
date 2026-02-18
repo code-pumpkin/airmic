@@ -49,7 +49,14 @@ function loadConfig() {
   catch { return {}; }
 }
 function saveConfig(cfg) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  const tmp = CONFIG_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2));
+  fs.renameSync(tmp, CONFIG_PATH);
+}
+function saveSessions(s) {
+  const tmp = SESSIONS_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
+  fs.renameSync(tmp, SESSIONS_PATH);
 }
 function loadSessions() {
   try { return JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8')); }
@@ -492,6 +499,7 @@ function handleConnection(ws) {
 
     // ── Auth handshake ──
     if (msg.type === 'auth') {
+      if (state.authed) return; // ignore re-auth from already-approved socket
       // returning device with saved token
       if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken) && sessions[msg.deviceToken]) {
         sessions[msg.deviceToken].lastSeen = Date.now();
