@@ -131,6 +131,19 @@ const MAX_REPLACEMENTS = 200;
 const MAX_VOICE_CMDS   = 100;
 for (const key of Object.keys(config.wordReplacements).slice(MAX_REPLACEMENTS)) delete config.wordReplacements[key];
 for (const key of Object.keys(config.voiceCommandsExtra).slice(MAX_VOICE_CMDS)) delete config.voiceCommandsExtra[key];
+// Strip malformed voiceCommandsExtra entries — must be plain objects with a valid action
+for (const [k, v] of Object.entries(config.voiceCommandsExtra)) {
+  const valid = v && typeof v === 'object' && !Array.isArray(v) &&
+    typeof v.action === 'string' &&
+    (v.action === 'scratch' ||
+     (v.action === 'key'  && typeof v.key  === 'string') ||
+     (v.action === 'type' && typeof v.text === 'string'));
+  if (!valid) delete config.voiceCommandsExtra[k];
+}
+// Strip malformed wordReplacements entries — both key and value must be strings
+for (const [k, v] of Object.entries(config.wordReplacements)) {
+  if (typeof k !== 'string' || typeof v !== 'string') delete config.wordReplacements[k];
+}
 
 // Prune sessions older than 90 days
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
