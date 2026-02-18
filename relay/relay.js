@@ -212,7 +212,7 @@ wss.on('connection', (ws, req) => {
 
       if (msg.type === 'host-register') {
         if (RELAY_SECRET) {
-          const secretBuf  = typeof msg.secret === 'string' ? Buffer.from(msg.secret) : null;
+          const secretBuf  = typeof msg.secret === 'string' ? Buffer.from(msg.secret.slice(0, 500)) : null;
           const expectedBuf = Buffer.from(RELAY_SECRET);
           const secretOk = secretBuf !== null && secretBuf.length === expectedBuf.length &&
             crypto.timingSafeEqual(secretBuf, expectedBuf);
