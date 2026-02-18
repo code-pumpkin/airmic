@@ -78,6 +78,12 @@ const DEFAULT_CONFIG = {
 let config   = { ...DEFAULT_CONFIG, ...loadConfig() };
 let sessions = loadSessions(); // { deviceToken: { name, approved, lastSeen } }
 
+// Sanitize port — must be a valid integer in range
+if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
+  console.warn(`[config] invalid port ${config.port}, falling back to 4000`);
+  config.port = 4000;
+}
+
 // Generate URL token once, persist it
 if (!config.urlToken) {
   config.urlToken = crypto.randomBytes(8).toString('hex');
