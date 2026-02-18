@@ -274,7 +274,24 @@ function setLive(text, isFinal = false) {
 
 // ─── PIN approval popup ───────────────────────────────────────────────────────
 
+const pinQueue = []; // { pin, ws } — queued when a prompt is already showing
+let pinPromptActive = false;
+
+function processPinQueue() {
+  if (pinPromptActive || !pinQueue.length) return;
+  const { pin, ws } = pinQueue.shift();
+  // skip if phone already disconnected while waiting in queue
+  if (ws.readyState !== WebSocket.OPEN) { processPinQueue(); return; }
+  pinPromptActive = true;
+  _showPinPopup(pin, ws);
+}
+
 function showPinPrompt(pin, ws) {
+  pinQueue.push({ pin, ws });
+  processPinQueue();
+}
+
+function _showPinPopup(pin, ws) {
   const popup = blessed.box({
     parent: screen, top: 'center', left: 'center', width: 44, height: 10,
     border: { type: 'line' },
@@ -295,7 +312,9 @@ function showPinPrompt(pin, ws) {
     screen.unkey('n', onN);
     popup.destroy();
     pendingPins.delete(pin);
+    pinPromptActive = false;
     screen.render();
+    processPinQueue(); // show next queued prompt if any
   }
 
   function onY() {
