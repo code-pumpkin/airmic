@@ -802,5 +802,5 @@ function shutdown() {
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);
-process.on('uncaughtException',  (err) => { try { logPhrase(`uncaughtException: ${err.message}`, 'warn'); } catch { console.error('uncaughtException:', err); } });
-process.on('unhandledRejection', (err) => { try { logPhrase(`unhandledRejection: ${err}`, 'warn'); } catch { console.error('unhandledRejection:', err); } });
+process.on('uncaughtException',  (err) => { try { logPhrase(`uncaughtException: ${err && err.message ? err.message : err}`, 'warn'); } catch { console.error('uncaughtException:', err); } });
+process.on('unhandledRejection', (err) => { try { logPhrase(`unhandledRejection: ${err && err.message ? err.message : err}`, 'warn'); } catch { console.error('unhandledRejection:', err); } });
