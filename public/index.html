@@ -317,7 +317,7 @@
     connectWS();
 
     function send(obj) {
-      if (ws && ws.readyState === WebSocket.OPEN && authed) ws.send(JSON.stringify(obj));
+      if (ws && ws.readyState === WebSocket.OPEN && authed) try { ws.send(JSON.stringify(obj)); } catch {}
     }
 
     // ── History ───────────────────────────────────────────────────────────────
@@ -389,8 +389,8 @@
       };
 
       recognition.onerror = (e) => { if (e.error === 'no-speech') return; statusEl.textContent = `Error: ${e.error}`; stopListening(); };
-      recognition.onend   = () => { if (listening && !pttMode) setTimeout(() => { if (listening && !pttMode) recognition.start(); }, 300); };
-      recognition.start();
+      recognition.onend   = () => { if (listening && !pttMode) setTimeout(() => { if (listening && !pttMode) try { recognition.start(); } catch {} }, 300); };
+      try { recognition.start(); } catch {}
     }
 
     function stopListening() {
@@ -398,7 +398,7 @@
       btn.classList.remove('listening');
       statusEl.textContent = pttMode ? 'Hold to talk' : 'Tap to start';
       transcriptEl.innerHTML = '<span class="interim">Transcript appears here...</span>';
-      if (recognition) recognition.stop();
+      if (recognition) try { recognition.stop(); } catch {}
     }
 
     langSelect.addEventListener('change', () => {
