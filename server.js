@@ -84,10 +84,15 @@ if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
   config.port = 4000;
 }
 
-// Generate URL token once, persist it
-if (!config.urlToken) {
+// Generate URL token once, persist it — regenerate if tampered/invalid
+if (!config.urlToken || !/^[a-f0-9]{8,64}$/.test(config.urlToken)) {
   config.urlToken = crypto.randomBytes(8).toString('hex');
   saveConfig(config);
+}
+
+// Sanitize language — fall back to default if not a valid BCP 47 tag
+if (typeof config.language !== 'string' || !/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/.test(config.language)) {
+  config.language = DEFAULT_CONFIG.language;
 }
 
 // Prune sessions older than 90 days
