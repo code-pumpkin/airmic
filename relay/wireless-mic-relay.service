@@ -13,6 +13,7 @@ Environment=PORT=4001
 # Environment=RELAY_SECRET=your-strong-secret-here
 # Environment=CERT_DIR=/etc/letsencrypt/live/yourdomain.com
 # Environment=PUBLIC=/opt/wireless-mic-relay/public
+# Environment=MAX_CLIENTS=10
 
 [Install]
 WantedBy=multi-user.target
