@@ -386,6 +386,13 @@ function _showPinPopup(pin, ws) {
 
   function onY() {
     cleanup();
+    // cap sessions to prevent unbounded growth of sessions.json
+    const MAX_SESSIONS = 500;
+    if (Object.keys(sessions).length >= MAX_SESSIONS) {
+      // evict the oldest session to make room
+      const oldest = Object.entries(sessions).sort((a, b) => (a[1].lastSeen || 0) - (b[1].lastSeen || 0))[0];
+      if (oldest) delete sessions[oldest[0]];
+    }
     const deviceToken = crypto.randomBytes(16).toString('hex');
     sessions[deviceToken] = { approved: true, lastSeen: Date.now() };
     saveSessions(sessions);
