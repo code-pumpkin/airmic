@@ -90,6 +90,11 @@ app.get('/health', (req, res) => {
 
 // Serve index.html with injected RELAY_TOKEN so phone knows it's in relay mode
 app.get('/:token', (req, res) => {
+  // Validate token format before injecting into HTML to prevent XSS
+  if (!TOKEN_RE.test(req.params.token)) {
+    res.status(400).send('Invalid token');
+    return;
+  }
   const content = getIndexHtml();
   if (!content) {
     res.status(503).send('index.html not found — copy public/ next to relay.js on the VPS');
