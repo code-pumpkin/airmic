@@ -9,10 +9,12 @@ const crypto  = require('crypto');
 const WebSocket = require('ws');
 const express = require('express');
 
-const PORT         = process.env.PORT         || 4001;
+const _port        = parseInt(process.env.PORT || '4001', 10);
+const PORT         = Number.isFinite(_port) && _port > 0 && _port < 65536 ? _port : 4001;
 const CERT_DIR     = process.env.CERT_DIR     || path.join(__dirname, 'certs');
 const PUBLIC       = process.env.PUBLIC       || path.join(__dirname, 'public');
-const RELAY_SECRET = process.env.RELAY_SECRET || '';
+const _rawSecret   = typeof process.env.RELAY_SECRET === 'string' ? process.env.RELAY_SECRET : '';
+const RELAY_SECRET = _rawSecret.slice(0, 500); // cap before any Buffer.from usage
 const _maxClients  = parseInt(process.env.MAX_CLIENTS || '10', 10);
 const MAX_CLIENTS  = Number.isFinite(_maxClients) && _maxClients > 0 ? _maxClients : 10;
 const PING_MS      = 25000;
