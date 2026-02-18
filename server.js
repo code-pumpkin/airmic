@@ -723,7 +723,7 @@ function connectRelay() {
   updateStatus();
 
   const url = config.relayUrl.replace(/\/$/, '');
-  relayWs = new WebSocket(url, { rejectUnauthorized: config.relayRejectUnauthorized !== false });
+  relayWs = new WebSocket(url, { rejectUnauthorized: config.relayRejectUnauthorized !== false, maxPayload: 64 * 1024 });
   const ws = relayWs; // local capture — prevents stale-closure if relayWs is reassigned on reconnect
 
   ws.on('open', () => {
