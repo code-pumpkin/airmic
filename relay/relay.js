@@ -252,6 +252,7 @@ wss.on('connection', (ws, req) => {
     // ── Client → Host forwarding ──
     if (role === 'client') {
       const room = getRoom(token);
+      if (!room) return;
       safeSend(room.host, JSON.stringify({ type: 'client-message', clientId, data: data.toString() }));
       return;
     }
@@ -259,6 +260,7 @@ wss.on('connection', (ws, req) => {
     // ── Host → Client forwarding ──
     if (role === 'host') {
       const room = getRoom(token);
+      if (!room) return;
       if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
       if (msg.type === 'host-message') {
         const client = room.clients.get(msg.clientId);
