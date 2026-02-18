@@ -329,7 +329,7 @@ screen.key(['C-q', 'C-c'], () => process.exit());
 screen.key('C-p', () => {
   paused = !paused;
   logPhrase(paused ? 'Paused from keyboard' : 'Resumed from keyboard', 'command');
-  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'paused', value: paused })); });
+  broadcast({ type: 'paused', value: paused });
   updateStatus();
 });
 
@@ -350,8 +350,9 @@ screen.key('C-e', () => {
     logPhrase(val ? `Relay URL set: ${val}` : 'Relay disabled', 'command');
     updateStatus();
     renderQR();
-    // reconnect with new URL
-    if (relayWs) { try { relayWs.terminate(); } catch {} }
+    // stop current relay cleanly before reconnecting
+    relayStopped = true;
+    if (relayWs) { try { relayWs.terminate(); } catch {} relayWs = null; }
     connectRelay();
   });
   screen.key('escape', () => { form.destroy(); screen.render(); });
@@ -456,7 +457,7 @@ function handleConnection(ws) {
       if (typeof msg.clipboardMode === 'boolean') { state.clipboardMode = msg.clipboardMode; config.clipboardMode = msg.clipboardMode; saveConfig(config); logPhrase(`Clipboard: ${msg.clipboardMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.pttMode === 'boolean')       { state.pttMode = msg.pttMode; logPhrase(`PTT: ${msg.pttMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.language === 'string')       { state.language = msg.language; logPhrase(`Language: ${msg.language}`, 'command'); }
-      if (typeof msg.paused === 'boolean')        { paused = msg.paused; wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'paused', value: paused })); }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
+      if (typeof msg.paused === 'boolean')        { paused = msg.paused; broadcast({ type: 'paused', value: paused }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
       phoneStates.set(ws, state);
       updateStatus();
       return;
@@ -531,16 +532,26 @@ function handleConnection(ws) {
 // Local WSS connections
 wss.on('connection', handleConnection);
 
+// ─── Broadcast to all connected clients (local + relay virtual) ───────────────
+
+function broadcast(msg) {
+  const data = JSON.stringify(msg);
+  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
+  virtualClients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
+}
+
 // ─── Relay client ─────────────────────────────────────────────────────────────
 
-let relayStatus = 'disabled'; // 'disabled' | 'connecting' | 'connected' | 'error'
-let relayWs     = null;
+let relayStatus    = 'disabled'; // 'disabled' | 'connecting' | 'connected' | 'error'
+let relayWs        = null;
+let relayStopped   = false; // true when we intentionally terminate (prevents auto-reconnect)
 const virtualClients = new Map(); // clientId → VirtualWS
 
 function connectRelay() {
   if (!config.relayUrl) { relayStatus = 'disabled'; updateStatus(); return; }
 
-  relayStatus = 'connecting';
+  relayStopped = false;
+  relayStatus  = 'connecting';
   updateStatus();
 
   const url = config.relayUrl.replace(/\/$/, '');
@@ -551,6 +562,7 @@ function connectRelay() {
     relayWs.send(JSON.stringify({ type: 'host-register', token: config.urlToken }));
     logPhrase(`Relay connected — ${url}`, 'connect');
     updateStatus();
+    renderQR();
   });
 
   relayWs.on('message', (data) => {
@@ -590,9 +602,10 @@ function connectRelay() {
 
   relayWs.on('close', () => {
     relayStatus = 'error';
-    // close all virtual clients cleanly
     virtualClients.forEach(vws => { vws.readyState = WebSocket.CLOSED; vws.emit('close'); });
     virtualClients.clear();
+    renderQR();
+    if (relayStopped) return; // intentional — don't reconnect
     logPhrase('Relay disconnected — retrying in 5s', 'warn');
     updateStatus();
     setTimeout(connectRelay, 5000);
@@ -629,7 +642,6 @@ server.listen(config.port, '0.0.0.0', () => {
   };
 
   // Re-render QR whenever relay status changes
-  const _origUpdateStatus = updateStatus;
   let _lastRelayStatus = relayStatus;
   setInterval(() => {
     if (relayStatus !== _lastRelayStatus) { _lastRelayStatus = relayStatus; renderQR(); }
