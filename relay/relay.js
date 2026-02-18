@@ -84,8 +84,13 @@ app.get('/health', (req, res) => {
   if (RELAY_SECRET) {
     const auth = req.headers.authorization || '';
     const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-    const query  = req.query.secret || null;
-    if (bearer !== RELAY_SECRET && query !== RELAY_SECRET) {
+    const query  = typeof req.query.secret === 'string' ? req.query.secret : null;
+    const expected = Buffer.from(RELAY_SECRET);
+    const bearerOk = bearer !== null && bearer.length === RELAY_SECRET.length &&
+      crypto.timingSafeEqual(Buffer.from(bearer), expected);
+    const queryOk  = query  !== null && query.length  === RELAY_SECRET.length &&
+      crypto.timingSafeEqual(Buffer.from(query),  expected);
+    if (!bearerOk && !queryOk) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
