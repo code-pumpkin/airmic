@@ -631,26 +631,27 @@ function connectRelay() {
 
   const url = config.relayUrl.replace(/\/$/, '');
   relayWs = new WebSocket(url, { rejectUnauthorized: config.relayRejectUnauthorized !== false });
+  const ws = relayWs; // local capture — prevents stale-closure if relayWs is reassigned on reconnect
 
-  relayWs.on('open', () => {
+  ws.on('open', () => {
     relayStatus = 'connected';
-    safeSend(relayWs, { type: 'host-register', token: config.urlToken, secret: config.relaySecret || '' });
+    safeSend(ws, { type: 'host-register', token: config.urlToken, secret: config.relaySecret || '' });
     logPhrase(`Relay connected — ${url}`, 'connect');
     updateStatus();
     renderQR();
 
     // keepalive — ping relay every 25s, terminate if no pong within 10s
-    relayWs.isAlive = true;
-    relayWs.on('pong', () => { relayWs.isAlive = true; clearTimeout(relayWs._pongTimeout); });
-    relayWs._pingTimer = setInterval(() => {
-      if (!relayWs.isAlive) { relayWs.terminate(); return; }
-      relayWs.isAlive = false;
-      relayWs.ping();
-      relayWs._pongTimeout = setTimeout(() => { if (!relayWs.isAlive) relayWs.terminate(); }, 10000);
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; clearTimeout(ws._pongTimeout); });
+    ws._pingTimer = setInterval(() => {
+      if (!ws.isAlive) { ws.terminate(); return; }
+      ws.isAlive = false;
+      ws.ping();
+      ws._pongTimeout = setTimeout(() => { if (!ws.isAlive) ws.terminate(); }, 10000);
     }, 25000);
   });
 
-  relayWs.on('message', (data) => {
+  ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
 
@@ -672,7 +673,7 @@ function connectRelay() {
     }
 
     if (msg.type === 'client-connect') {
-      const vws = new VirtualWS(msg.clientId, relayWs);
+      const vws = new VirtualWS(msg.clientId, ws);
       virtualClients.set(msg.clientId, vws);
       handleConnection(vws);
       return;
@@ -692,9 +693,9 @@ function connectRelay() {
     }
   });
 
-  relayWs.on('close', () => {
-    clearInterval(relayWs._pingTimer);
-    clearTimeout(relayWs._pongTimeout);
+  ws.on('close', () => {
+    clearInterval(ws._pingTimer);
+    clearTimeout(ws._pongTimeout);
     relayStatus = 'error';
     virtualClients.forEach(vws => { vws.readyState = WebSocket.CLOSED; vws.emit('close'); });
     virtualClients.clear();
@@ -705,7 +706,7 @@ function connectRelay() {
     setTimeout(connectRelay, 5000);
   });
 
-  relayWs.on('error', (err) => {
+  ws.on('error', (err) => {
     relayStatus = 'error';
     logPhrase(`Relay error: ${err.message}`, 'warn');
     updateStatus();
