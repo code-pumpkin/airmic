@@ -32,6 +32,11 @@ function checkRate(ip) {
   if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_WINDOW; }
   entry.count++;
   ipRates.set(ip, entry);
+  // cap map size to prevent unbounded growth from many unique IPs
+  if (ipRates.size > 10000) {
+    const oldest = [...ipRates.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt)[0];
+    if (oldest) ipRates.delete(oldest[0]);
+  }
   return entry.count <= RATE_MAX;
 }
 
