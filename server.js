@@ -4,6 +4,7 @@ const path     = require('path');
 const { exec } = require('child_process');
 const crypto   = require('crypto');
 const { EventEmitter } = require('events');
+const { networkInterfaces } = require('os');
 const WebSocket = require('ws');
 const express  = require('express');
 const blessed  = require('blessed');
@@ -717,7 +718,6 @@ function connectRelay() {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 server.listen(config.port, '0.0.0.0', () => {
-  const { networkInterfaces } = require('os');
   const nets = networkInterfaces();
   for (const iface of Object.values(nets))
     for (const net of iface)
