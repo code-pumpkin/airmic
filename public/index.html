@@ -299,7 +299,7 @@
             showScreen('screen-main');
             send({ type: 'config', language: langSelect.value, pttMode, clipboardMode });
           } else if (msg.status === 'pin') {
-            if (typeof msg.pin === 'string') pinDisplay.textContent = msg.pin;
+            if (typeof msg.pin === 'string' && /^\d{6}$/.test(msg.pin)) pinDisplay.textContent = msg.pin;
             showScreen('screen-auth');
           } else if (msg.status === 'rejected') {
             showScreen('screen-rejected');
