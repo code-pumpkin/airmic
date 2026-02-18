@@ -62,7 +62,8 @@ const DEFAULT_CONFIG = {
   clipboardMode: false,
   wordReplacements: {},
   voiceCommandsExtra: {},
-  relayUrl: '',   // e.g. "wss://yourrelay.example.com:4001"
+  relayUrl: '',              // e.g. "wss://yourrelay.example.com:4001"
+  relayRejectUnauthorized: true, // false for self-signed certs (dev only)
 };
 
 let config   = { ...DEFAULT_CONFIG, ...loadConfig() };
@@ -555,7 +556,7 @@ function connectRelay() {
   updateStatus();
 
   const url = config.relayUrl.replace(/\/$/, '');
-  relayWs = new WebSocket(url, { rejectUnauthorized: false });
+  relayWs = new WebSocket(url, { rejectUnauthorized: config.relayRejectUnauthorized !== false });
 
   relayWs.on('open', () => {
     relayStatus = 'connected';

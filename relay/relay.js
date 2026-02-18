@@ -33,6 +33,14 @@ function cleanRoom(token) {
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
 
+app.get('/health', (req, res) => {
+  const roomStats = [];
+  rooms.forEach((room, token) => {
+    roomStats.push({ token: token.slice(0,8) + '…', host: !!room.host, clients: room.clients.size });
+  });
+  res.json({ status: 'ok', uptime: process.uptime(), rooms: roomStats });
+});
+
 // Serve index.html with injected RELAY_TOKEN so phone knows it's in relay mode
 app.get('/:token', (req, res) => {
   const html = path.join(PUBLIC, 'index.html');
