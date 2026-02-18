@@ -744,6 +744,7 @@ function handleConnection(ws) {
         connectedCount++;
         safeSend(ws, { type: 'auth', status: 'approved', deviceToken: msg.deviceToken });
         safeSend(ws, { type: 'paused', value: paused });
+        safeSend(ws, { type: 'aiEnabled', value: config.aiEnabled });
         logPhrase(`Known device reconnected`, 'connect');
         updateStatus();
         return;

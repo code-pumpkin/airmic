@@ -315,6 +315,7 @@
         }
 
         if (msg.type === 'paused') { if (typeof msg.value === 'boolean') { paused = msg.value; syncPauseUI(); } }
+        if (msg.type === 'aiEnabled') { if (typeof msg.value === 'boolean') { aiMode = msg.value; aiBtn.classList.toggle('active', aiMode); aiBtn.textContent = aiMode ? '🤖 AI (on)' : '🤖 AI'; } }
       };
     }
     connectWS();
