@@ -450,6 +450,8 @@ screen.key('C-d', () => {
 
 function runCmd(cmd, cb) { exec(cmd, (err) => { if (err) logPhrase(`xdotool: ${err.message}`, 'warn'); cb && cb(); }); }
 function escape(text) { return text.replace(/'/g, "'\\''"); }
+// sanitize xdotool key names — only allow alphanumeric, hyphen, underscore, space (for chaining)
+function safeKey(key) { return String(key).replace(/[^a-zA-Z0-9_\- ]/g, ''); }
 
 function applyReplacements(text) {
   let out = text;
@@ -561,7 +563,7 @@ function handleConnection(ws) {
         const vc = vcmds[cmd];
         if (onScreen.length > 0) enqueue(`xdotool key --clearmodifiers --repeat ${onScreen.length} BackSpace`, true);
         if (vc.action === 'scratch') { if (ws._lastPhraseLen > 0) { enqueue(`xdotool key --clearmodifiers --repeat ${ws._lastPhraseLen} BackSpace`, true); logPhrase(`Scratched: "${ws._lastPhrase}"`, 'command'); ws._lastPhrase = ''; ws._lastPhraseLen = 0; } }
-        else if (vc.action === 'key')  { enqueue(`xdotool key --clearmodifiers ${vc.key}`, true); logPhrase(`⌘ ${cmd}`, 'command'); }
+        else if (vc.action === 'key')  { enqueue(`xdotool key --clearmodifiers ${safeKey(vc.key)}`, true); logPhrase(`⌘ ${cmd}`, 'command'); }
         else if (vc.action === 'type') { typeOrClip(vc.text); logPhrase(`⌘ ${cmd} → "${vc.text}"`, 'command'); }
         return;
       }
