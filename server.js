@@ -626,6 +626,12 @@ const virtualClients = new Map(); // clientId → VirtualWS
 
 function connectRelay() {
   if (!config.relayUrl) { relayStatus = 'disabled'; updateStatus(); return; }
+  if (!/^wss?:\/\/.+/.test(config.relayUrl)) {
+    logPhrase('Relay URL must start with wss:// — skipping', 'warn');
+    relayStatus = 'error';
+    updateStatus();
+    return;
+  }
 
   relayStopped = false;
   relayStatus  = 'connecting';
