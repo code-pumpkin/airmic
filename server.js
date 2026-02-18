@@ -103,6 +103,9 @@ if (typeof config.language !== 'string' || !/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$
 // Sanitize boolean fields
 if (typeof config.clipboardMode !== 'boolean') config.clipboardMode = false;
 if (typeof config.relayRejectUnauthorized !== 'boolean') config.relayRejectUnauthorized = true;
+// Sanitize string fields
+if (typeof config.relayUrl !== 'string') config.relayUrl = '';
+if (typeof config.relaySecret !== 'string') config.relaySecret = '';
 // Sanitize object fields — discard if not plain objects
 if (typeof config.wordReplacements !== 'object' || Array.isArray(config.wordReplacements) || !config.wordReplacements) config.wordReplacements = {};
 if (typeof config.voiceCommandsExtra !== 'object' || Array.isArray(config.voiceCommandsExtra) || !config.voiceCommandsExtra) config.voiceCommandsExtra = {};
