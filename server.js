@@ -331,6 +331,7 @@ function setLive(text, isFinal = false) {
 // ─── PIN approval popup ───────────────────────────────────────────────────────
 
 const pinQueue = []; // { pin, ws } — queued when a prompt is already showing
+const PIN_QUEUE_MAX = 10; // max pending PIN approvals
 let pinPromptActive = false;
 
 function processPinQueue() {
@@ -343,6 +344,12 @@ function processPinQueue() {
 }
 
 function showPinPrompt(pin, ws) {
+  // reject if queue is full — prevents unbounded memory growth from many new devices
+  if (pinQueue.length >= PIN_QUEUE_MAX) {
+    safeSend(ws, { type: 'auth', status: 'rejected' });
+    ws.close();
+    return;
+  }
   // remove from queue if phone disconnects while waiting
   ws.once('close', () => {
     const idx = pinQueue.findIndex(e => e.ws === ws);
@@ -578,9 +585,11 @@ function handleConnection(ws) {
 
     const queue = ws._queue || (ws._queue = []);
     let running = ws._running || false;
+    const CMD_QUEUE_MAX = 50; // prevent unbounded queue growth from fast speech
 
     function enqueue(cmd, isFinal = false) {
       if (!isFinal) { for (let i = queue.length-1; i >= 0; i--) { if (!queue[i].isFinal) queue.splice(i,1); } }
+      if (queue.length >= CMD_QUEUE_MAX) return; // drop if queue is full
       queue.push({ cmd, isFinal });
       drain();
     }
