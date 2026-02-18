@@ -1,0 +1,13 @@
+{
+  "name": "wireless-mic-relay",
+  "version": "1.0.0",
+  "description": "WSS relay broker for wireless-mic-input",
+  "main": "relay.js",
+  "scripts": {
+    "start": "node relay.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.18.0"
+  }
+}
