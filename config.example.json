@@ -7,5 +7,10 @@
   "urlToken": "",
   "relayUrl": "",
   "relaySecret": "",
-  "relayRejectUnauthorized": true
+  "relayRejectUnauthorized": true,
+  "aiEnabled": false,
+  "aiProvider": "openai",
+  "aiModel": "",
+  "aiApiKey": "",
+  "aiPrompt": "You are a transcription assistant. Clean up and summarize the following spoken text into clear, concise written prose. Preserve the meaning exactly. Output only the improved text, nothing else."
 }
