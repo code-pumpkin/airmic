@@ -96,10 +96,12 @@ app.get('/health', (req, res) => {
     const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     const query  = typeof req.query.secret === 'string' ? req.query.secret : null;
     const expected = Buffer.from(RELAY_SECRET);
-    const bearerOk = bearer !== null && bearer.length === RELAY_SECRET.length &&
-      crypto.timingSafeEqual(Buffer.from(bearer), expected);
-    const queryOk  = query  !== null && query.length  === RELAY_SECRET.length &&
-      crypto.timingSafeEqual(Buffer.from(query),  expected);
+    const bearerBuf = bearer !== null ? Buffer.from(bearer) : null;
+    const queryBuf  = query  !== null ? Buffer.from(query)  : null;
+    const bearerOk = bearerBuf !== null && bearerBuf.length === expected.length &&
+      crypto.timingSafeEqual(bearerBuf, expected);
+    const queryOk  = queryBuf  !== null && queryBuf.length  === expected.length &&
+      crypto.timingSafeEqual(queryBuf,  expected);
     if (!bearerOk && !queryOk) {
       res.status(401).json({ error: 'unauthorized' });
       return;
@@ -210,9 +212,10 @@ wss.on('connection', (ws, req) => {
 
       if (msg.type === 'host-register') {
         if (RELAY_SECRET) {
-          const secretOk = typeof msg.secret === 'string' &&
-            msg.secret.length === RELAY_SECRET.length &&
-            crypto.timingSafeEqual(Buffer.from(msg.secret), Buffer.from(RELAY_SECRET));
+          const secretBuf  = typeof msg.secret === 'string' ? Buffer.from(msg.secret) : null;
+          const expectedBuf = Buffer.from(RELAY_SECRET);
+          const secretOk = secretBuf !== null && secretBuf.length === expectedBuf.length &&
+            crypto.timingSafeEqual(secretBuf, expectedBuf);
           if (!secretOk) {
             safeSend(ws, { type: 'error', reason: 'bad-secret' });
             ws.close();
