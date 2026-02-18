@@ -193,11 +193,16 @@ wss.on('connection', (ws, req) => {
       const room = getRoom(token);
 
       if (msg.type === 'host-register') {
-        if (RELAY_SECRET && (typeof msg.secret !== 'string' || msg.secret !== RELAY_SECRET)) {
-          safeSend(ws, { type: 'error', reason: 'bad-secret' });
-          ws.close();
-          log(`host rejected — bad secret  token=${token.slice(0,8)}…`);
-          return;
+        if (RELAY_SECRET) {
+          const secretOk = typeof msg.secret === 'string' &&
+            msg.secret.length === RELAY_SECRET.length &&
+            crypto.timingSafeEqual(Buffer.from(msg.secret), Buffer.from(RELAY_SECRET));
+          if (!secretOk) {
+            safeSend(ws, { type: 'error', reason: 'bad-secret' });
+            ws.close();
+            log(`host rejected — bad secret  token=${token.slice(0,8)}…`);
+            return;
+          }
         }
         if (room.host && room.host !== ws) { try { room.host.terminate(); } catch {} }
         role = 'host';
