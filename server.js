@@ -89,6 +89,14 @@ for (const [token, s] of Object.entries(sessions)) {
     delete sessions[token];
   }
 }
+const MAX_SESSIONS = 500;
+// Trim to cap in case sessions.json was manually inflated
+const _sessionKeys = Object.keys(sessions);
+if (_sessionKeys.length > MAX_SESSIONS) {
+  _sessionKeys.sort((a, b) => (sessions[a].lastSeen || 0) - (sessions[b].lastSeen || 0))
+    .slice(0, _sessionKeys.length - MAX_SESSIONS)
+    .forEach(k => delete sessions[k]);
+}
 
 // Sanitize port — must be a valid integer in range
 if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
@@ -402,7 +410,6 @@ function _showPinPopup(pin, ws) {
   function onY() {
     cleanup();
     // cap sessions to prevent unbounded growth of sessions.json
-    const MAX_SESSIONS = 500;
     if (Object.keys(sessions).length >= MAX_SESSIONS) {
       // evict the oldest session to make room
       const oldest = Object.entries(sessions).sort((a, b) => (a[1].lastSeen || 0) - (b[1].lastSeen || 0))[0];
