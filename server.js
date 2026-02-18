@@ -142,13 +142,11 @@ function getVoiceCommands() {
 // ─── Server setup ─────────────────────────────────────────────────────────────
 
 const app = express();
-app.use(express.json());
 
 // Only serve the app if URL token matches
 app.get(`/${config.urlToken}`, (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
-app.use('/static', express.static(path.join(__dirname, 'public/static')));
 app.get('/{*path}', (req, res) => res.status(403).send('Forbidden'));
 
 const server = https.createServer({
