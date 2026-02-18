@@ -126,7 +126,7 @@ function startKeepalive(ws) {
 wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress || 'unknown';
   if (!checkRate(ip)) {
-    ws.send(JSON.stringify({ type: 'error', reason: 'rate-limited' }));
+    safeSend(ws, { type: 'error', reason: 'rate-limited' });
     ws.terminate();
     log(`rate-limited  ip=${ip}`);
     return;
@@ -154,31 +154,24 @@ wss.on('connection', (ws, req) => {
       const room = getRoom(token);
 
       if (msg.type === 'host-register') {
-        // verify secret if one is configured on the relay
         if (RELAY_SECRET && msg.secret !== RELAY_SECRET) {
-          ws.send(JSON.stringify({ type: 'error', reason: 'bad-secret' }));
+          safeSend(ws, { type: 'error', reason: 'bad-secret' });
           ws.close();
           log(`host rejected — bad secret  token=${token.slice(0,8)}…`);
           return;
         }
-        // evict stale host (crashed/reconnecting desktop)
-        if (room.host && room.host !== ws) {
-          try { room.host.terminate(); } catch {}
-        }
+        if (room.host && room.host !== ws) { try { room.host.terminate(); } catch {} }
         role = 'host';
         room.host = ws;
-        ws.send(JSON.stringify({ type: 'registered' }));
+        safeSend(ws, { type: 'registered' });
         log(`host registered   token=${token.slice(0,8)}…`);
-        // re-announce any clients that were already in the room
-        room.clients.forEach((_, cid) => {
-          ws.send(JSON.stringify({ type: 'client-connect', clientId: cid }));
-        });
+        room.clients.forEach((_, cid) => safeSend(ws, { type: 'client-connect', clientId: cid }));
         return;
       }
 
       if (msg.type === 'client-connect') {
         if (room.clients.size >= MAX_CLIENTS) {
-          ws.send(JSON.stringify({ type: 'error', reason: 'room-full' }));
+          safeSend(ws, { type: 'error', reason: 'room-full' });
           ws.close();
           log(`client rejected — room full  token=${token.slice(0,8)}…`);
           return;
@@ -187,10 +180,10 @@ wss.on('connection', (ws, req) => {
         clientId = crypto.randomBytes(6).toString('hex');
         room.clients.set(clientId, ws);
         if (room.host && room.host.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'connected', clientId }));
-          try { room.host.send(JSON.stringify({ type: 'client-connect', clientId })); } catch {}
+          safeSend(ws, { type: 'connected', clientId });
+          safeSend(room.host, { type: 'client-connect', clientId });
         } else {
-          ws.send(JSON.stringify({ type: 'error', reason: 'host-unavailable' }));
+          safeSend(ws, { type: 'error', reason: 'host-unavailable' });
           room.clients.delete(clientId);
           ws.close();
         }
@@ -204,8 +197,7 @@ wss.on('connection', (ws, req) => {
     // ── Client → Host forwarding ──
     if (role === 'client') {
       const room = getRoom(token);
-      if (room.host && room.host.readyState === WebSocket.OPEN)
-        try { room.host.send(JSON.stringify({ type: 'client-message', clientId, data: data.toString() })); } catch {}
+      safeSend(room.host, JSON.stringify({ type: 'client-message', clientId, data: data.toString() }));
       return;
     }
 
@@ -215,7 +207,7 @@ wss.on('connection', (ws, req) => {
       if (!msg.clientId) return;
       if (msg.type === 'host-message') {
         const client = room.clients.get(msg.clientId);
-        if (client && client.readyState === WebSocket.OPEN) try { client.send(msg.data); } catch {}
+        safeSend(client, msg.data);
       } else if (msg.type === 'host-close') {
         const client = room.clients.get(msg.clientId);
         if (client) client.close();
@@ -240,8 +232,7 @@ wss.on('connection', (ws, req) => {
 
     if (role === 'client' && clientId) {
       room.clients.delete(clientId);
-      if (room.host && room.host.readyState === WebSocket.OPEN)
-        try { room.host.send(JSON.stringify({ type: 'client-disconnect', clientId })); } catch {}
+      safeSend(room.host, { type: 'client-disconnect', clientId });
       log(`client disconnected  id=${clientId}`);
       cleanRoom(token);
     }
@@ -251,6 +242,11 @@ wss.on('connection', (ws, req) => {
 function log(msg) {
   const t = new Date().toISOString().slice(11,19);
   console.log(`[${t}] ${msg}`);
+}
+
+function safeSend(ws, data) {
+  if (ws && ws.readyState === WebSocket.OPEN)
+    try { ws.send(typeof data === 'string' ? data : JSON.stringify(data)); } catch {}
 }
 
 function gracefulShutdown(signal) {
