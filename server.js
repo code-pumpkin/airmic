@@ -771,3 +771,5 @@ function shutdown() {
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);
+process.on('uncaughtException',  (err) => logPhrase(`uncaughtException: ${err.message}`, 'warn'));
+process.on('unhandledRejection', (err) => logPhrase(`unhandledRejection: ${err}`, 'warn'));

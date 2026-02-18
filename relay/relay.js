@@ -281,5 +281,7 @@ function gracefulShutdown(signal) {
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+process.on('uncaughtException',  (err) => log(`uncaughtException: ${err.message}`));
+process.on('unhandledRejection', (err) => log(`unhandledRejection: ${err}`));
 
 server.listen(PORT, () => log(`relay listening on :${PORT}`));
