@@ -216,12 +216,13 @@
       wsStatusEl.className = 'authing';
 
       ws.onopen = () => {
-        if (RELAY_MODE) {
-          // relay handshake: register as client first, auth follows on 'connected' ack
-          ws.send(JSON.stringify({ type: 'client-connect', token: window.RELAY_TOKEN }));
-        } else {
-          ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
-        }
+        try {
+          if (RELAY_MODE) {
+            ws.send(JSON.stringify({ type: 'client-connect', token: window.RELAY_TOKEN }));
+          } else {
+            ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+          }
+        } catch {}
       };
 
       ws.onclose = () => {
@@ -242,7 +243,7 @@
 
         // relay ack — now send auth
         if (msg.type === 'connected') {
-          ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+          try { ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null })); } catch {}
           return;
         }
 
@@ -301,7 +302,7 @@
           } else if (msg.status === 'required') {
             deviceToken = null;
             localStorage.removeItem(STORAGE_KEY);
-            ws.send(JSON.stringify({ type: 'auth', deviceToken: null }));
+            try { ws.send(JSON.stringify({ type: 'auth', deviceToken: null })); } catch {}
           }
           return;
         }
