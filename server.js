@@ -486,7 +486,7 @@ function applyReplacements(text) {
   for (const [from, to] of Object.entries(config.wordReplacements || {})) {
     // escape regex special chars in the key so literal strings always match
     const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), to);
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), () => to);
   }
   return out;
 }
