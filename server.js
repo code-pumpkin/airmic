@@ -800,7 +800,8 @@ function connectRelay() {
         relayStatus = 'error';
         updateStatus();
       } else {
-        logPhrase(`Relay error: ${typeof msg.reason === 'string' ? msg.reason : 'unknown'}`, 'warn');
+        const reason = typeof msg.reason === 'string' ? msg.reason.slice(0, 100) : 'unknown';
+        logPhrase(`Relay error: ${reason}`, 'warn');
       }
       return;
     }
