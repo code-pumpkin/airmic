@@ -4,5 +4,8 @@
   "clipboardMode": false,
   "wordReplacements": {},
   "voiceCommandsExtra": {},
-  "urlToken": "f28accf8e13a88ee"
+  "urlToken": "",
+  "relayUrl": "",
+  "relaySecret": "",
+  "relayRejectUnauthorized": true
 }
