@@ -60,8 +60,11 @@ function saveSessions(s) {
   fs.renameSync(tmp, SESSIONS_PATH);
 }
 function loadSessions() {
-  try { return JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8')); }
-  catch { return {}; }
+  try {
+    const data = JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8'));
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+  } catch {}
+  return {};
 }
 
 const DEFAULT_CONFIG = {
