@@ -548,9 +548,10 @@ screen.key('C-a', () => {
   blessed.text({ parent: form, top: 9, left: 2, content: 'Prompt:', style: { fg: '#888' } });
   const promptInput = blessed.textbox({ parent: form, top: 10, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiPrompt || DEFAULT_CONFIG.aiPrompt });
   const enabledLabel = blessed.text({ parent: form, top: 12, left: 2, tags: true, style: { bg: '#111' } });
-  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${config.aiEnabled ? 'green' : 'red'}-fg}${config.aiEnabled ? 'enabled' : 'disabled'}{/${config.aiEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Space to toggle]{/#555-fg}`); screen.render(); }
+  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${config.aiEnabled ? 'green' : 'red'}-fg}${config.aiEnabled ? 'enabled' : 'disabled'}{/${config.aiEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
   updateEnabledLabel();
   blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 15, left: 2, content: 'Ctrl+Space to toggle AI on/off', style: { fg: '#555' } });
 
   // provider cycling with arrow keys
   form.key('right', () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); });
@@ -561,8 +562,8 @@ screen.key('C-a', () => {
   modelInput.key('tab',  () => promptInput.focus());
   modelInput.key('enter',() => promptInput.focus());
   promptInput.key('tab', () => keyInput.focus());
-  // space on the form (not inside a textbox) toggles enabled
-  form.key('space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
+  // Ctrl+Space toggles AI enabled — works even when a textbox has focus
+  form.key('C-space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
 
   function onEscA() { form.destroy(); screen.unkey('escape', onEscA); screen.render(); }
   function save() {
