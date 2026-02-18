@@ -119,6 +119,10 @@ wss.on('connection', (ws) => {
         room.host = ws;
         ws.send(JSON.stringify({ type: 'registered' }));
         log(`host registered   token=${token.slice(0,8)}…`);
+        // re-announce any clients that were already in the room
+        room.clients.forEach((_, cid) => {
+          ws.send(JSON.stringify({ type: 'client-connect', clientId: cid }));
+        });
         return;
       }
 
@@ -126,9 +130,15 @@ wss.on('connection', (ws) => {
         role     = 'client';
         clientId = crypto.randomBytes(6).toString('hex');
         room.clients.set(clientId, ws);
-        ws.send(JSON.stringify({ type: 'connected', clientId }));
-        if (room.host && room.host.readyState === WebSocket.OPEN)
+        if (room.host && room.host.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'connected', clientId }));
           room.host.send(JSON.stringify({ type: 'client-connect', clientId }));
+        } else {
+          // no host — tell phone to wait/retry
+          ws.send(JSON.stringify({ type: 'error', reason: 'host-unavailable' }));
+          room.clients.delete(clientId);
+          ws.close();
+        }
         log(`client connected  id=${clientId}  token=${token.slice(0,8)}…`);
         return;
       }

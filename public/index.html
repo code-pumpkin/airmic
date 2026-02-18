@@ -238,6 +238,13 @@
           return;
         }
 
+        // relay: host not up yet — ws.onclose will fire and trigger reconnect
+        if (msg.type === 'error' && msg.reason === 'host-unavailable') {
+          wsStatusEl.textContent = 'host offline — retrying';
+          wsStatusEl.className = 'disconnected';
+          return;
+        }
+
         if (msg.type === 'auth') {
           if (msg.status === 'approved') {
             authed = true;
