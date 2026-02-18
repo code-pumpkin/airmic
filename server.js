@@ -422,8 +422,8 @@ screen.key('C-e', () => {
   function onEscE() { form.destroy(); screen.unkey('escape', onEscE); screen.render(); }
   function save() {
     screen.unkey('escape', onEscE);
-    const val    = urlInput.getValue().trim();
-    const secret = secretInput.getValue().trim();
+    const val    = urlInput.getValue().trim().slice(0, 500);
+    const secret = secretInput.getValue().trim().slice(0, 200);
     config.relayUrl                = val;
     config.relaySecret             = secret;
     config.relayRejectUnauthorized = rejectUnauth;
