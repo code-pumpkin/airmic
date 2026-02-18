@@ -12,8 +12,9 @@ const express = require('express');
 const PORT      = process.env.PORT     || 4001;
 const CERT_DIR  = process.env.CERT_DIR || path.join(__dirname, 'certs');
 const PUBLIC    = process.env.PUBLIC   || path.join(__dirname, 'public');
-const PING_MS   = 25000; // keepalive interval
-const PING_TTL  = 10000; // max wait for pong before terminating
+const RELAY_SECRET = process.env.RELAY_SECRET || ''; // set this on the VPS
+const PING_MS   = 25000;
+const PING_TTL  = 10000;
 
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 // token → { host: ws|null, clients: Map<clientId, ws> }
@@ -111,6 +112,13 @@ wss.on('connection', (ws) => {
       const room = getRoom(token);
 
       if (msg.type === 'host-register') {
+        // verify secret if one is configured on the relay
+        if (RELAY_SECRET && msg.secret !== RELAY_SECRET) {
+          ws.send(JSON.stringify({ type: 'error', reason: 'bad-secret' }));
+          ws.close();
+          log(`host rejected — bad secret  token=${token.slice(0,8)}…`);
+          return;
+        }
         // evict stale host (crashed/reconnecting desktop)
         if (room.host && room.host !== ws) {
           try { room.host.terminate(); } catch {}
