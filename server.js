@@ -274,13 +274,16 @@ setInterval(updateStatus, 1000);
 function logPhrase(text, type = 'info') {
   const time = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
   const t = `{#444444-fg}${time}{/#444444-fg}`;
-  const lines = { phrase: `${t}  {white-fg}${text}{/white-fg}`, command: `${t}  {yellow-fg}⌘  ${text}{/yellow-fg}`, connect: `${t}  {green-fg}⬤  ${text}{/green-fg}`, disconnect: `${t}  {red-fg}○  ${text}{/red-fg}`, warn: `${t}  {red-fg}⚠  ${text}{/red-fg}`, auth: `${t}  {magenta-fg}🔐 ${text}{/magenta-fg}` };
-  logBox.log(lines[type] || `${t}  {#666-fg}${text}{/#666-fg}`);
+  // escape blessed tag chars so speech text never corrupts the TUI
+  const safe = String(text).replace(/[{}]/g, c => c === '{' ? '\\{' : '\\}');
+  const lines = { phrase: `${t}  {white-fg}${safe}{/white-fg}`, command: `${t}  {yellow-fg}⌘  ${safe}{/yellow-fg}`, connect: `${t}  {green-fg}⬤  ${safe}{/green-fg}`, disconnect: `${t}  {red-fg}○  ${safe}{/red-fg}`, warn: `${t}  {red-fg}⚠  ${safe}{/red-fg}`, auth: `${t}  {magenta-fg}🔐 ${safe}{/magenta-fg}` };
+  logBox.log(lines[type] || `${t}  {#666-fg}${safe}{/#666-fg}`);
   screen.render();
 }
 
 function setLive(text, isFinal = false) {
-  liveBox.setContent(isFinal ? `{white-fg}{bold}${text}{/bold}{/white-fg}` : `{#888888-fg}${text}{/#888888-fg}`);
+  const safe = String(text).replace(/[{}]/g, c => c === '{' ? '\\{' : '\\}');
+  liveBox.setContent(isFinal ? `{white-fg}{bold}${safe}{/bold}{/white-fg}` : `{#888888-fg}${safe}{/#888888-fg}`);
   screen.render();
 }
 
@@ -586,6 +589,9 @@ function handleConnection(ws) {
     const state = phoneStates.get(ws);
     if (state && state.authed) connectedCount--;
     phoneStates.delete(ws);
+    // flush pending xdotool queue so stale commands don't fire after disconnect
+    if (ws._queue) ws._queue.length = 0;
+    ws._running = false;
     logPhrase('Phone disconnected', 'disconnect');
     updateStatus();
   });
