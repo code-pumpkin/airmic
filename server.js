@@ -521,6 +521,7 @@ function handleConnection(ws) {
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
     const state = phoneStates.get(ws) || {};
 
     // ── Auth handshake ──
