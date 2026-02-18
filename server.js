@@ -578,8 +578,8 @@ function handleConnection(ws) {
         const onScreenCap = Math.min(onScreen.length, 500);
         if (onScreenCap > 0) enqueue(`xdotool key --clearmodifiers --repeat ${onScreenCap} BackSpace`, true);
         if (vc.action === 'scratch') { if (ws._lastPhraseLen > 0) { const cap = Math.min(ws._lastPhraseLen, 500); enqueue(`xdotool key --clearmodifiers --repeat ${cap} BackSpace`, true); logPhrase(`Scratched: "${ws._lastPhrase}"`, 'command'); ws._lastPhrase = ''; ws._lastPhraseLen = 0; } }
-        else if (vc.action === 'key')  { enqueue(`xdotool key --clearmodifiers ${safeKey(vc.key)}`, true); logPhrase(`⌘ ${cmd}`, 'command'); }
-        else if (vc.action === 'type') { typeOrClip(vc.text); logPhrase(`⌘ ${cmd} → "${vc.text}"`, 'command'); }
+        else if (vc.action === 'key'  && typeof vc.key  === 'string') { enqueue(`xdotool key --clearmodifiers ${safeKey(vc.key)}`, true); logPhrase(`⌘ ${cmd}`, 'command'); }
+        else if (vc.action === 'type' && typeof vc.text === 'string') { typeOrClip(vc.text.slice(0, 2000)); logPhrase(`⌘ ${cmd} → "${vc.text}"`, 'command'); }
         return;
       }
       const finalText = applyReplacements(msg.text);
