@@ -537,8 +537,10 @@ const LOCAL_MAX_CLIENTS = 5;   // max simultaneous local WS connections
 const LOCAL_REG_TIMEOUT = 8000; // drop unauthenticated sockets after 8s
 
 function handleConnection(ws) {
-  // cap unauthenticated local connections to prevent DoS
-  if (wss.clients.size > LOCAL_MAX_CLIENTS) {
+  const isVirtual = ws instanceof VirtualWS;
+
+  // cap local (non-relay) connections to prevent DoS
+  if (!isVirtual && wss.clients.size > LOCAL_MAX_CLIENTS) {
     safeSend(ws, { type: 'error', reason: 'room-full' });
     ws.terminate();
     return;
@@ -546,12 +548,15 @@ function handleConnection(ws) {
 
   phoneStates.set(ws, { language: config.language, pttMode: false, clipboardMode: config.clipboardMode, authed: false, deviceToken: null });
 
-  // drop connections that never authenticate
-  const regTimer = setTimeout(() => {
-    const state = phoneStates.get(ws);
-    if (state && !state.authed) { ws.terminate(); }
-  }, LOCAL_REG_TIMEOUT);
-  ws.once('close', () => clearTimeout(regTimer));
+  // drop connections that never authenticate (local only — relay handles its own timeout)
+  let regTimer;
+  if (!isVirtual) {
+    regTimer = setTimeout(() => {
+      const state = phoneStates.get(ws);
+      if (state && !state.authed) { ws.terminate(); }
+    }, LOCAL_REG_TIMEOUT);
+    ws.once('close', () => clearTimeout(regTimer));
+  }
 
   ws.on('message', (data) => {
     let msg;
