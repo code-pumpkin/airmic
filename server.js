@@ -522,6 +522,7 @@ function applyReplacements(text) {
   let out = text;
   for (const [from, to] of Object.entries(config.wordReplacements || {})) {
     if (typeof from !== 'string' || typeof to !== 'string') continue;
+    if (from.length > 200 || to.length > 500) continue; // skip oversized entries from config.json
     // escape regex special chars in the key so literal strings always match
     const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), () => to);
