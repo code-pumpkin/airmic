@@ -9,9 +9,9 @@ const crypto  = require('crypto');
 const WebSocket = require('ws');
 const express = require('express');
 
-const PORT      = process.env.PORT || 4001;
-const CERT_DIR  = path.join(__dirname, 'certs');
-const PUBLIC    = path.join(__dirname, 'public');
+const PORT      = process.env.PORT     || 4001;
+const CERT_DIR  = process.env.CERT_DIR || path.join(__dirname, 'certs');
+const PUBLIC    = process.env.PUBLIC   || path.join(__dirname, 'public');
 const PING_MS   = 25000; // keepalive interval
 const PING_TTL  = 10000; // max wait for pong before terminating
 
