@@ -374,8 +374,8 @@
           ? `${escapeHtml(final)}<span class="interim"> ${escapeHtml(interim)}</span>`
           : `<span class="interim">${escapeHtml(interim) || '...'}</span>`;
 
-        if (final) { send({ type: 'final', text: final }); addHistory(final.trim()); }
-        else if (interim) { send({ type: 'interim', text: interim }); }
+        if (final) { send({ type: 'final', text: final.slice(0, 2000) }); addHistory(final.trim().slice(0, 2000)); }
+        else if (interim) { send({ type: 'interim', text: interim.slice(0, 2000) }); }
       };
 
       recognition.onerror = (e) => { if (e.error === 'no-speech') return; statusEl.textContent = `Error: ${e.error}`; stopListening(); };
