@@ -275,7 +275,8 @@ function fmtUptime() {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
 function badge(label, value, color) {
-  return `{#555555-fg}${label}{/#555555-fg} {${color}-fg}${value}{/${color}-fg}`;
+  const safe = String(value).replace(/[{}]/g, c => c === '{' ? '\\{' : '\\}');
+  return `{#555555-fg}${label}{/#555555-fg} {${color}-fg}${safe}{/${color}-fg}`;
 }
 
 function updateStatus() {
