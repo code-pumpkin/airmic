@@ -47,8 +47,13 @@ const MAX_MSG_BYTES = 64 * 1024; // 64 KB max message size
 // token → { host: ws|null, clients: Map<clientId, ws> }
 const rooms = new Map();
 
+const MAX_ROOMS = 1000; // prevent unbounded room map growth
+
 function getRoom(token) {
-  if (!rooms.has(token)) rooms.set(token, { host: null, clients: new Map() });
+  if (!rooms.has(token)) {
+    if (rooms.size >= MAX_ROOMS) return null; // reject new rooms when at cap
+    rooms.set(token, { host: null, clients: new Map() });
+  }
   return rooms.get(token);
 }
 
@@ -191,6 +196,12 @@ wss.on('connection', (ws, req) => {
       if (!msg.token || !TOKEN_RE.test(msg.token)) { ws.close(); return; }
       token = msg.token;
       const room = getRoom(token);
+      if (!room) {
+        safeSend(ws, { type: 'error', reason: 'server-full' });
+        ws.close();
+        log(`rejected — room cap reached  token=${token.slice(0,8)}…`);
+        return;
+      }
 
       if (msg.type === 'host-register') {
         if (RELAY_SECRET) {
