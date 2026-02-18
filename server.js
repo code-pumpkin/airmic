@@ -349,8 +349,8 @@ screen.key('C-e', () => {
   updateTlsLabel();
   blessed.text({ parent: form, top: 9,  left: 2, content: 'e.g. wss://yourserver.com:4001', style: { fg: '#555' } });
   blessed.text({ parent: form, top: 10, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
-  urlInput.key('tab', () => secretInput.focus());
-  urlInput.key('enter', () => secretInput.focus());
+  urlInput.key('tab',   () => secretInput.focus());
+  urlInput.key('enter', () => secretInput.focus()); // Enter on URL field moves to secret
   secretInput.key('tab', () => urlInput.focus());
   secretInput.key('space', () => { rejectUnauth = !rejectUnauth; updateTlsLabel(); });
   function onEscE() { form.destroy(); screen.unkey('escape', onEscE); screen.render(); }
@@ -370,8 +370,7 @@ screen.key('C-e', () => {
     if (relayWs) { try { relayWs.terminate(); } catch {} relayWs = null; }
     connectRelay();
   }
-  urlInput.key('enter', save);
-  secretInput.key('enter', save);
+  secretInput.key('enter', save); // only secret field Enter saves
   screen.key('escape', onEscE);
   screen.render(); urlInput.focus();
 });
