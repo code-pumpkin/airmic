@@ -62,9 +62,6 @@ function loadSessions() {
   try { return JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8')); }
   catch { return {}; }
 }
-function saveSessions(s) {
-  fs.writeFileSync(SESSIONS_PATH, JSON.stringify(s, null, 2));
-}
 
 const DEFAULT_CONFIG = {
   port: 4000,
