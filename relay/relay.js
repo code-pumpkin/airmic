@@ -237,7 +237,7 @@ wss.on('connection', (ws, req) => {
     // ── Host → Client forwarding ──
     if (role === 'host') {
       const room = getRoom(token);
-      if (typeof msg.clientId !== 'string') return;
+      if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
       if (msg.type === 'host-message') {
         const client = room.clients.get(msg.clientId);
         if (typeof msg.data === 'string') safeSend(client, msg.data);
