@@ -189,7 +189,7 @@ const liveBox = blessed.box({
 
 const bottomBar = blessed.box({
   bottom: 0, left: 0, width: '100%', height: 1, tags: true,
-  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
+  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^E]{/cyan-bg}{/black-fg} Relay URL  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
   style: { fg: '#aaaaaa', bg: '#111' },
 });
 
@@ -333,6 +333,28 @@ screen.key('C-p', () => {
 });
 
 screen.key('C-l', () => { logBox.setContent(''); logPhrase('Log cleared', 'info'); });
+
+screen.key('C-e', () => {
+  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 60, height: 9, border: { type: 'line' }, style: { border: { fg: 'cyan' }, bg: '#111' }, label: ' ⇄  Set Relay URL ', keys: true });
+  blessed.text({ parent: form, top: 1, left: 2, content: 'Relay WSS URL (blank to disable):', style: { fg: '#888' } });
+  const input = blessed.textbox({ parent: form, top: 2, left: 2, width: 54, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.relayUrl || '' });
+  blessed.text({ parent: form, top: 4, left: 2, content: 'e.g. wss://yourserver.com:4001', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 5, left: 2, content: 'Enter to save, Esc to cancel', style: { fg: '#555' } });
+  input.focus();
+  input.key('enter', () => {
+    const val = input.getValue().trim();
+    config.relayUrl = val;
+    saveConfig(config);
+    form.destroy();
+    logPhrase(val ? `Relay URL set: ${val}` : 'Relay disabled', 'command');
+    updateStatus();
+    // reconnect with new URL
+    if (relayWs) { try { relayWs.terminate(); } catch {} }
+    connectRelay();
+  });
+  screen.key('escape', () => { form.destroy(); screen.render(); });
+  screen.render(); input.focus();
+});
 
 screen.key('C-r', () => {
   const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 52, height: 11, border: { type: 'line' }, style: { border: { fg: 'yellow' }, bg: '#111' }, label: ' ✎  Add Word Replacement ', keys: true });

@@ -25,11 +25,18 @@ function getRoom(token) {
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
 
-// Serve index.html for any /:token path (phone opens this URL)
+// Serve index.html with injected RELAY_TOKEN so phone knows it's in relay mode
 app.get('/:token', (req, res) => {
   const html = path.join(PUBLIC, 'index.html');
-  if (fs.existsSync(html)) res.sendFile(html);
-  else res.status(503).send('index.html not found — copy public/ next to relay.js on the VPS');
+  if (!fs.existsSync(html)) {
+    res.status(503).send('index.html not found — copy public/ next to relay.js on the VPS');
+    return;
+  }
+  let content = fs.readFileSync(html, 'utf8');
+  // inject token before </head> so index.html can detect relay mode
+  content = content.replace('</head>', `<script>window.RELAY_TOKEN="${req.params.token}";</script>\n</head>`);
+  res.setHeader('Content-Type', 'text/html');
+  res.send(content);
 });
 app.get('/{*path}', (req, res) => res.status(403).send('Forbidden'));
 
