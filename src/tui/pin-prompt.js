@@ -66,35 +66,61 @@ function createPinSystem(ctx) {
     ctx.logFn('Device rejected', 'warn');
   }
 
-  // ── Headless PIN approval via stdin ──
+  // ── Headless PIN approval — just queue and wait for IPC `airmic approve` ──
   function _headlessPrompt(pin, ws) {
-    let done = false;
-    function cleanup() {
-      if (done) return;
-      done = true;
+    // In daemon mode stdin is /dev/null — don't try readline.
+    // Just log the PIN and leave it in the queue for IPC approval.
+    // The registration timeout in handler.js gives the user time to approve.
+    ctx.logFn(`New device — PIN: ${pin}  (run: airmic approve ${pin})`, 'auth');
+
+    // If stdin is readable (interactive headless), offer Y/N prompt
+    if (process.stdin.readable && !process.stdin.destroyed) {
+      let done = false;
+      function cleanup() {
+        if (done) return;
+        done = true;
+        pinPromptActive = false;
+        processPinQueue();
+      }
+
+      console.log(`\n──────────────────────────────────`);
+      console.log(`  New device — PIN: ${pin}`);
+      console.log(`  Type Y to approve, N to reject`);
+      console.log(`──────────────────────────────────`);
+
+      ws.once('close', () => cleanup());
+
+      try {
+        const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+        rl.question('> ', (answer) => {
+          rl.close();
+          if (done) return;
+          const a = (answer || '').trim().toLowerCase();
+          if (a === 'y' || a === 'yes') {
+            approveDevice(ws, pin);
+          } else {
+            rejectDevice(ws);
+          }
+          cleanup();
+        });
+        rl.on('close', () => {
+          // stdin closed (daemon mode) — don't reject, just leave in queue
+          if (!done) {
+            done = true;
+            pinPromptActive = false;
+            processPinQueue();
+          }
+        });
+      } catch {
+        // readline failed — leave in queue for IPC
+        pinPromptActive = false;
+        processPinQueue();
+      }
+    } else {
+      // Daemon mode — PIN stays in queue, waiting for IPC approve
       pinPromptActive = false;
       processPinQueue();
     }
-
-    console.log(`\n──────────────────────────────────`);
-    console.log(`  New device — PIN: ${pin}`);
-    console.log(`  Type Y to approve, N to reject`);
-    console.log(`──────────────────────────────────`);
-
-    ws.once('close', () => cleanup());
-
-    const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
-    rl.question('> ', (answer) => {
-      rl.close();
-      if (done) return;
-      const a = (answer || '').trim().toLowerCase();
-      if (a === 'y' || a === 'yes') {
-        approveDevice(ws, pin);
-      } else {
-        rejectDevice(ws);
-      }
-      cleanup();
-    });
   }
 
   // ── TUI PIN approval popup ──
