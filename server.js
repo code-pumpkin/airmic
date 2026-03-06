@@ -195,12 +195,12 @@ function startApp(headless) {
   });
 
   // PIN system
-  const pinSystem = createPinSystem({
+  const pinCtx = {
     headless,
     blessed: tui.blessed,
     screen: tui.screen,
     sessions, saveSessions,
-    phoneStates: null, // set after connection handler
+    get phoneStates() { return connHandler ? connHandler.phoneStates : new Map(); },
     logFn: tui.logPhrase,
     updateStatus: () => tui.updateStatus(),
     T: tui.T,
@@ -209,7 +209,8 @@ function startApp(headless) {
       connHandler.setConnectedCount(n);
       tui.setAppState({ connectedCount: n });
     },
-  });
+  };
+  const pinSystem = createPinSystem(pinCtx);
 
   // Connection handler
   const connHandler = createConnectionHandler({
@@ -236,11 +237,6 @@ function startApp(headless) {
     get totalWords() { return totalWords; },
     set totalWords(v) { totalWords = v; },
   });
-
-  // Wire PIN system's phoneStates reference
-  pinSystem._ctx = pinSystem._ctx || {};
-  // The pin system needs phoneStates from connHandler
-  Object.defineProperty(pinSystem, '_phoneStates', { get: () => connHandler.phoneStates });
 
   // Set relay's handleConnection
   relay.handleConnection = connHandler.handleConnection;

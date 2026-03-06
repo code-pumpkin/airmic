@@ -40,6 +40,8 @@ class VirtualWS extends EventEmitter {
     this.emit('close');
   }
 
+  terminate() { this.close(); }
+
   /** Called by relay client when a message arrives for this virtual socket. */
   _receive(data) {
     this.emit('message', data);
