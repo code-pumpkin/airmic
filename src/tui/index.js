@@ -28,6 +28,9 @@ function createTUI(config, opts = {}) {
       destroy() {},
       bindKeys() {},
       applyTheme() { return false; },
+      clearLog() {},
+      setupInputBar() {},
+      setAppState() {},
       widgets: {},
     };
   }
