@@ -64,6 +64,7 @@ function saveSessions(s) {
 
 const DEFAULT_CONFIG = {
   port: 4000,
+  bindAddress: '',
   language: 'en-US',
   clipboardMode: false,
   wordReplacements: {},
@@ -114,6 +115,8 @@ function initConfig() {
   if (typeof config.relayRejectUnauthorized !== 'boolean') config.relayRejectUnauthorized = true;
 
   // Sanitize strings
+  if (typeof config.bindAddress !== 'string') config.bindAddress = '';
+  config.bindAddress = config.bindAddress.slice(0, 100);
   if (typeof config.relayUrl !== 'string') config.relayUrl = '';
   if (typeof config.relaySecret !== 'string') config.relaySecret = '';
   config.relayUrl    = config.relayUrl.slice(0, 500);

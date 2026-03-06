@@ -29,9 +29,16 @@ const LOG_PATH = path.join(ROOT, 'airmic.log');
 
 if (command === 'headless') {
   const action = args[1];
-  if (action === 'on')  return startDaemon();
+  if (action === 'on') {
+    const mode = (args[2] || '').toLowerCase();
+    if (mode && mode !== 'relay' && mode !== 'local') {
+      console.log('Usage: airmic headless on [relay|local]');
+      process.exit(1);
+    }
+    return startDaemon(mode || null);
+  }
   if (action === 'off') return stopDaemon();
-  console.log('Usage: airmic headless on|off');
+  console.log('Usage: airmic headless on [relay|local] | off');
   process.exit(1);
 }
 
@@ -47,12 +54,12 @@ if (command === 'help' || command === '--help' || command === '-h') {
   AirMic — Turn your phone into a wireless mic
 
   Usage:
-    airmic                  Launch TUI (interactive)
-    airmic setup            Run first-time setup wizard
-    airmic headless on      Start as background daemon
-    airmic headless off     Stop the daemon
-    airmic status           Show daemon status
-    airmic approve <PIN>    Approve a new device by PIN
+    airmic                        Launch TUI (interactive)
+    airmic setup                  Run first-time setup wizard
+    airmic headless on [relay|local]  Start as background daemon
+    airmic headless off           Stop the daemon
+    airmic status                 Show daemon status
+    airmic approve <PIN>          Approve a new device by PIN
 
   Options:
     --help, -h                   Show this help
@@ -63,9 +70,12 @@ if (command === 'help' || command === '--help' || command === '-h') {
 if (command === 'setup') {
   runSetup().then(() => process.exit(0));
 } else if (command === '--headless-daemon') {
-  maybeSetup(true).then(() => startApp(true));
+  // Parse --mode=relay|local from daemon args
+  const modeArg = args.find(a => a.startsWith('--mode='));
+  const daemonMode = modeArg ? modeArg.split('=')[1] : null;
+  maybeSetup(true).then(() => startApp(true, daemonMode));
 } else {
-  maybeSetup(false).then(() => startApp(false));
+  maybeSetup(false).then(() => startApp(false, null));
 }
 
 // ─── First-run setup wizard ──────────────────────────────────────────────────
@@ -119,6 +129,35 @@ async function runSetup() {
   const portNum = parseInt(portAnswer, 10);
   if (portNum > 0 && portNum < 65536) config.port = portNum;
 
+  // ── Network interface ──
+  if (mode !== '2') {
+    const nets = networkInterfaces();
+    const ipv4 = [];
+    for (const [name, addrs] of Object.entries(nets)) {
+      for (const a of addrs) {
+        if (a.family === 'IPv4' && !a.internal) ipv4.push({ name, address: a.address });
+      }
+    }
+
+    if (ipv4.length > 1) {
+      console.log('\n  Network Interface');
+      console.log('  ─────────────────');
+      console.log('  Multiple network interfaces detected. Which IP should the phone connect to?\n');
+      ipv4.forEach((iface, i) => console.log(`  ${i + 1}) ${iface.address}  (${iface.name})`));
+      console.log(`  ${ipv4.length + 1}) Auto-detect (first non-internal IPv4)\n`);
+
+      const ifAnswer = await ask(rl, `  Choose [1-${ipv4.length + 1}] (default: auto): `);
+      const ifNum = parseInt(ifAnswer, 10);
+      if (ifNum >= 1 && ifNum <= ipv4.length) {
+        config.bindAddress = ipv4[ifNum - 1].address;
+      } else {
+        config.bindAddress = '';
+      }
+    } else if (ipv4.length === 1) {
+      config.bindAddress = '';  // only one — auto is fine
+    }
+  }
+
   // ── AI ──
   console.log('\n  AI Text Cleanup');
   console.log('  ───────────────');
@@ -164,9 +203,18 @@ async function runSetup() {
 
 // ─── Start app (TUI or headless inline) ──────────────────────────────────────
 
-function startApp(headless) {
+function startApp(headless, mode) {
   const config   = initConfig();
   const sessions = initSessions();
+
+  // Override relay based on mode arg
+  if (mode === 'local') {
+    config.relayUrl = '';
+    config.relaySecret = '';
+  } else if (mode === 'relay' && !config.relayUrl) {
+    // Force relay with default if not configured
+    config.relayUrl = 'wss://amrelay1.returnfeed.com:4001';
+  }
 
   // Prune sessions daily
   setInterval(() => pruneSessions(sessions), 24 * 60 * 60 * 1000);
@@ -337,10 +385,15 @@ function startApp(headless) {
   // ─── Start server ──────────────────────────────────────────────────────────
 
   server.listen(config.port, '0.0.0.0', () => {
-    const nets = networkInterfaces();
-    for (const iface of Object.values(nets))
-      for (const n of iface)
-        if (n.family === 'IPv4' && !n.internal) { localIP = n.address; break; }
+    // Use configured bindAddress, or auto-detect first non-internal IPv4
+    if (config.bindAddress) {
+      localIP = config.bindAddress;
+    } else {
+      const nets = networkInterfaces();
+      for (const iface of Object.values(nets))
+        for (const n of iface)
+          if (n.family === 'IPv4' && !n.internal) { localIP = n.address; break; }
+    }
 
     localUrl = `https://${localIP}:${config.port}/${config.urlToken}`;
     config._localUrl = localUrl;
@@ -371,7 +424,7 @@ function startApp(headless) {
     if (!headless) tui.screen.render();
 
     // Start IPC server for CLI commands
-    startIPC({ pinSystem, config, relay, paused: () => paused, connectedCount: () => connHandler.getConnectedCount(), totalPhrases: () => totalPhrases, totalWords: () => totalWords });
+    startIPC({ pinSystem, config, relay, localUrl: () => localUrl, paused: () => paused, connectedCount: () => connHandler.getConnectedCount(), totalPhrases: () => totalPhrases, totalWords: () => totalWords });
   });
 
   // ─── Shutdown ──────────────────────────────────────────────────────────────
@@ -423,9 +476,14 @@ function startIPC(ctx) {
 
 function handleIPC(msg, ctx) {
   if (msg.cmd === 'status') {
+    const relayDisplayUrl = (ctx.config.relayUrl && ctx.relay.roomToken)
+      ? ctx.config.relayUrl.replace(/^wss:\/\//, 'https://').replace(/\/$/, '') + `/${ctx.relay.roomToken}`
+      : null;
     return {
       ok: true,
       pid: process.pid,
+      url: ctx.localUrl(),
+      relayDisplayUrl,
       paused: ctx.paused(),
       connectedCount: ctx.connectedCount(),
       totalPhrases: ctx.totalPhrases(),
@@ -450,7 +508,7 @@ function cleanupIPC() {
 
 // ─── CLI subcommands ─────────────────────────────────────────────────────────
 
-function startDaemon() {
+function startDaemon(mode) {
   // Check if already running
   if (fs.existsSync(PID_PATH)) {
     const pid = parseInt(fs.readFileSync(PID_PATH, 'utf8'));
@@ -461,18 +519,61 @@ function startDaemon() {
   const { spawn } = require('child_process');
   const logFd = fs.openSync(LOG_PATH, 'a');
 
-  const child = spawn(process.execPath, [__filename, '--headless-daemon'], {
+  const daemonArgs = [__filename, '--headless-daemon'];
+  if (mode) daemonArgs.push(`--mode=${mode}`);
+
+  const child = spawn(process.execPath, daemonArgs, {
     detached: true,
     stdio: ['ignore', logFd, logFd],
     env: { ...process.env },
   });
 
   child.unref();
-  console.log(`AirMic daemon started (PID ${child.pid})`);
+  console.log(`AirMic daemon started (PID ${child.pid})${mode ? ` [${mode} mode]` : ''}`);
   console.log(`  Log: ${LOG_PATH}`);
   console.log(`  Stop: airmic headless off`);
   console.log(`  Status: airmic status`);
-  process.exit(0);
+
+  // Wait for IPC to come up, then print URL + QR
+  let attempts = 0;
+  const maxAttempts = 30;
+  const poll = setInterval(() => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(poll);
+      console.log('\n  Daemon started but URL not yet available. Run `airmic status` to check.');
+      process.exit(0);
+    }
+    if (!fs.existsSync(IPC_PATH)) return;
+
+    const conn = net.createConnection(IPC_PATH);
+    let buf = '';
+    conn.on('connect', () => { conn.write(JSON.stringify({ cmd: 'status' }) + '\n'); });
+    conn.on('data', (data) => {
+      buf += data.toString();
+      if (!buf.includes('\n')) return;
+      clearInterval(poll);
+      try {
+        const resp = JSON.parse(buf.split('\n')[0]);
+        conn.destroy();
+        if (resp.url) {
+          console.log(`\n  Phone URL: ${resp.url}`);
+          if (resp.relayUrl && resp.relayStatus === 'connected' && resp.relayDisplayUrl) {
+            console.log(`  Relay URL: ${resp.relayDisplayUrl}`);
+          }
+          // Print QR code
+          const QRCode = require('qrcode');
+          QRCode.toString(resp.relayDisplayUrl || resp.url, { type: 'terminal', small: true }, (err, qr) => {
+            if (!err && qr) console.log('\n' + qr);
+            process.exit(0);
+          });
+        } else {
+          process.exit(0);
+        }
+      } catch { conn.destroy(); }
+    });
+    conn.on('error', () => { conn.destroy(); });
+  }, 500);
 }
 
 function stopDaemon() {
@@ -513,6 +614,8 @@ function showStatus() {
     conn.destroy();
 
     console.log(`AirMic — running (PID ${resp.pid})`);
+    if (resp.url) console.log(`  URL:      ${resp.url}`);
+    if (resp.relayDisplayUrl) console.log(`  Relay:    ${resp.relayDisplayUrl}`);
     console.log(`  Devices:  ${resp.connectedCount}`);
     console.log(`  Paused:   ${resp.paused ? 'yes' : 'no'}`);
     console.log(`  Phrases:  ${resp.totalPhrases}`);
