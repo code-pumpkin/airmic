@@ -158,8 +158,8 @@ Or configure interactively: `Ctrl+A` in the TUI.
 | Provider | Default model |
 |----------|--------------|
 | OpenAI | gpt-4o-mini |
-| Anthropic | claude-3-5-haiku-latest |
-| Google | gemini-1.5-flash |
+| Anthropic | claude-3-7-haiku-latest |
+| Google | gemini-2.5-flash |
 
 You can override the model and system prompt in AI settings.
 
