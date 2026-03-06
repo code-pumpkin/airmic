@@ -9,7 +9,7 @@ const { aiSummarize } = require('../ai');
 const VirtualWS = require('../relay/virtual-ws');
 
 const LOCAL_MAX_CLIENTS = 5;
-const LOCAL_REG_TIMEOUT = 8000;
+const LOCAL_REG_TIMEOUT = 120000;
 const VIRTUAL_MAX_CLIENTS = 10;
 const MSG_RATE_WINDOW = 1000;
 const MSG_RATE_MAX    = 30;
