@@ -7,9 +7,14 @@ config.json
 bun.lock
 .vscode/
 .kiro/
-src/
+src/agent/
+src/shared/
+src/relay/*.ts
 website/
 tsconfig.json
 awsDeployment.md
 abc
 user/
+.voicebridge.sock
+.voicebridge.pid
+voicebridge.log
