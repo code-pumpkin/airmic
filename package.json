@@ -69,7 +69,7 @@
     "self-hosted",
     "open-source"
   ],
-  "author": "",
+  "author": "code-pumpkin <code-pumpkin@outlook.com>",
   "license": "MIT",
   "type": "commonjs",
   "engines": {
