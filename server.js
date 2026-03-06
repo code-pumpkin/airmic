@@ -200,6 +200,8 @@ function startApp(headless) {
     blessed: tui.blessed,
     screen: tui.screen,
     sessions, saveSessions,
+    config,
+    getPaused: () => paused,
     get phoneStates() { return connHandler ? connHandler.phoneStates : new Map(); },
     logFn: tui.logPhrase,
     updateStatus: () => tui.updateStatus(),

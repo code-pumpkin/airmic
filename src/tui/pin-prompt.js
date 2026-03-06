@@ -53,6 +53,9 @@ function createPinSystem(ctx) {
     if (state) { state.authed = true; state.deviceToken = deviceToken; }
     ctx.setConnectedCount(ctx.getConnectedCount() + 1);
     safeSend(ws, { type: 'auth', status: 'approved', deviceToken });
+    // Send initial state so phone UI is in sync immediately
+    if (typeof ctx.getPaused === 'function') safeSend(ws, { type: 'paused', value: ctx.getPaused() });
+    if (ctx.config) safeSend(ws, { type: 'aiEnabled', value: !!ctx.config.aiEnabled });
     ctx.logFn('Device approved — token saved', 'auth');
     ctx.updateStatus();
   }

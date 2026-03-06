@@ -137,8 +137,7 @@ function createConnectionHandler(ctx) {
       // Initialize OpLog per socket
       if (!ws._oplog) ws._oplog = new OpLog();
       const oplog = ws._oplog;
-      if (!ws._lastPhrase)    ws._lastPhrase = '';
-      if (!ws._lastPhraseLen) ws._lastPhraseLen = 0;
+      if (!ws._lastPhrase) ws._lastPhrase = '';
 
       function execOp(cmd, cb) { runCmd(cmd, cb, ctx.logFn); }
       function drainOps() { oplog.drain(execOp); }
@@ -194,10 +193,12 @@ function createConnectionHandler(ctx) {
           const onScreen = oplog.projectedText();
           if (onScreen.length > 0) deleteChars(onScreen.length);
           if (vc.action === 'scratch') {
-            if (ws._lastPhraseLen > 0) {
-              deleteChars(ws._lastPhraseLen);
+            const scratchLen = oplog.screenLength();
+            if (scratchLen > 0) {
+              deleteChars(scratchLen);
               ctx.logFn(`Scratched: "${ws._lastPhrase}"`, 'command');
-              ws._lastPhrase = ''; ws._lastPhraseLen = 0;
+              ws._lastPhrase = '';
+              oplog.setScreenLength(0);
             }
           }
           else if (vc.action === 'key' && typeof vc.key === 'string') {
@@ -226,36 +227,35 @@ function createConnectionHandler(ctx) {
         if (toType.trim()) typeOrClip(toType);
         else if (toDelete > 0) typeOrClip(' ');
 
+        const fullTyped = finalText + ' ';
+        ctx.totalPhrases++; ctx.totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
+        ctx.logFn(finalText, 'phrase');
+        ctx.updateStatus();
+
         // AI summarize
         if (ctx.config.aiEnabled && require('../ai').getAiApiKey()) {
-          const fullTyped = finalText + ' ';
-          ws._lastPhrase = fullTyped; ws._lastPhraseLen = fullTyped.length;
-          ctx.totalPhrases++; ctx.totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
-          ctx.logFn(finalText, 'phrase');
-          ctx.updateStatus();
+          ws._lastPhrase = fullTyped;
           ws._aiSeq = (ws._aiSeq || 0) + 1;
           const seq = ws._aiSeq;
-          const typedLen = fullTyped.length;
           aiSummarize(finalText, ctx.config, ctx.logFn).then(improved => {
             if (improved === finalText) return;
             if (ws.readyState !== WebSocket.OPEN) return;
             if (ws._aiSeq !== seq) return;
             const safeImproved = improved.trimStart().slice(0, 4000) + ' ';
-            deleteChars(typedLen);
+            // Use screenLength — it tracks what's actually on-screen across resets
+            const onScreenLen = oplog.screenLength();
+            if (onScreenLen > 0) deleteChars(onScreenLen);
             typeOrClip(safeImproved);
             ws._lastPhrase = safeImproved;
-            ws._lastPhraseLen = safeImproved.length;
+            oplog.setScreenLength(safeImproved.length);
             ctx.logFn(`AI (${ctx.config.aiProvider}): ${improved}`, 'command');
           }).catch(() => {});
         } else {
-          const fullTyped = finalText + ' ';
-          ws._lastPhrase = fullTyped; ws._lastPhraseLen = fullTyped.length;
-          ctx.totalPhrases++; ctx.totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
-          ctx.logFn(finalText, 'phrase');
-          ctx.updateStatus();
+          ws._lastPhrase = fullTyped;
         }
 
-        oplog.reset();
+        // Defer reset until queued ops finish — keeps nodes alive for drain
+        oplog.resetAfterDrain();
         drainOps();
       }
     });
