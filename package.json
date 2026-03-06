@@ -1,10 +1,10 @@
 {
   "name": "@code-pumpkin/voicebridge",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Turn your phone into a wireless microphone for your desktop — real-time speech-to-text typed into any focused window via WebSocket. Works over local WiFi or internet relay. Supports Linux, macOS, and Windows. AI-powered text cleanup with OpenAI, Anthropic, and Google. No app install needed — phone UI runs in the browser.",
   "main": "server.js",
   "bin": {
-    "voicebridge": "./server.js"
+    "voicebridge": "server.js"
   },
   "files": [
     "server.js",
