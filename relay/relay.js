@@ -22,6 +22,8 @@ const PING_TTL     = 10000;
 const REG_TIMEOUT  = 8000;
 const RATE_WINDOW  = 60000; // 1 minute window
 const RATE_MAX     = 20;    // max connections per IP per window
+const MSG_RATE_WINDOW = 1000; // 1 second window for message rate
+const MSG_RATE_MAX    = 30;   // max messages per second per socket
 const TOKEN_RE     = /^[a-f0-9]{8,64}$/; // valid urlToken format
 
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
@@ -73,21 +75,43 @@ function cleanRoom(token) {
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
 
+// ─── HTTP rate limiting (per IP, 60 req/min) ─────────────────────────────────
+const httpRates = new Map();
+const HTTP_RATE_WINDOW = 60000;
+const HTTP_RATE_MAX = 60;
+app.use((req, res, next) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = httpRates.get(ip) || { count: 0, resetAt: now + HTTP_RATE_WINDOW };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + HTTP_RATE_WINDOW; }
+  entry.count++;
+  httpRates.set(ip, entry);
+  if (entry.count > HTTP_RATE_MAX) { res.status(429).send('Too Many Requests'); return; }
+  next();
+});
+setInterval(() => { const now = Date.now(); httpRates.forEach((v, k) => { if (now > v.resetAt) httpRates.delete(k); }); }, 300000);
+
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=()');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss: https:; base-uri 'self'; form-action 'none'; frame-ancestors 'none'");
+  // CORS — restrict to same-origin; no cross-origin requests needed for relay-served pages
+  const allowedOrigin = `https://${req.hostname || 'localhost'}:${PORT}`;
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization');
   next();
 });
 
-// Cache index.html in memory — read once, serve forever (restart relay to pick up changes)
-let indexHtmlCache = null;
+// Read index.html fresh each time — ensures deploys take effect immediately
 function getIndexHtml() {
-  if (indexHtmlCache !== null) return indexHtmlCache;
   const html = path.join(PUBLIC, 'index.html');
-  try { indexHtmlCache = fs.readFileSync(html, 'utf8'); } catch { return null; }
-  return indexHtmlCache;
+  try { return fs.readFileSync(html, 'utf8'); } catch { return null; }
 }
 
 app.get('/health', (req, res) => {
@@ -122,6 +146,11 @@ app.get('/:token', (req, res) => {
     res.status(400).send('Invalid token');
     return;
   }
+  // Verify room exists — don't serve page for non-existent rooms
+  if (!rooms.has(req.params.token)) {
+    res.status(404).send('Room not found — the host may not be connected yet');
+    return;
+  }
   const content = getIndexHtml();
   if (!content) {
     res.status(503).send('index.html not found — copy public/ next to relay.js on the VPS');
@@ -129,6 +158,9 @@ app.get('/:token', (req, res) => {
   }
   const injected = content.replace('</head>', `<script>window.RELAY_TOKEN="${req.params.token}";</script>\n</head>`);
   res.setHeader('Content-Type', 'text/html');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.send(injected);
 });
 app.get('/{*path}', (req, res) => res.status(403).send('Forbidden'));
@@ -193,6 +225,17 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', (data) => {
     if (data.length > MAX_MSG_BYTES) { ws.terminate(); log(`oversized message from ${role || 'unregistered'} — terminated`); return; }
+    // Per-socket message rate limiting
+    const now = Date.now();
+    if (!ws._msgCount) { ws._msgCount = 0; ws._msgWindowStart = now; }
+    if (now - ws._msgWindowStart > MSG_RATE_WINDOW) { ws._msgCount = 0; ws._msgWindowStart = now; }
+    ws._msgCount++;
+    if (ws._msgCount > MSG_RATE_MAX) {
+      safeSend(ws, { type: 'error', reason: 'rate-limited' });
+      ws.terminate();
+      log(`message rate-limited  role=${role || 'unregistered'}`);
+      return;
+    }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
@@ -223,11 +266,25 @@ wss.on('connection', (ws, req) => {
             return;
           }
         }
+        // Generate a unique room token for this host session
+        // The host sent its local urlToken, but we assign a relay-specific one
+        // so different desktops never collide
+        const roomToken = crypto.randomBytes(12).toString('hex');
+        // Re-key the room under the new roomToken
+        rooms.delete(token);
+        token = roomToken;
+        const room = getRoom(token);
+        if (!room) {
+          safeSend(ws, { type: 'error', reason: 'server-full' });
+          ws.close();
+          return;
+        }
         if (room.host && room.host !== ws) { try { room.host.terminate(); } catch {} }
         role = 'host';
         room.host = ws;
-        safeSend(ws, { type: 'registered' });
-        log(`host registered   token=${token.slice(0,8)}…`);
+        room.localUrl = (typeof msg.localUrl === 'string' && msg.localUrl.length < 200) ? msg.localUrl : null;
+        safeSend(ws, { type: 'registered', roomToken });
+        log(`host registered   roomToken=${roomToken.slice(0,8)}…  localUrl=${room.localUrl || 'none'}`);
         room.clients.forEach((_, cid) => safeSend(ws, { type: 'client-connect', clientId: cid }));
         return;
       }
@@ -243,7 +300,7 @@ wss.on('connection', (ws, req) => {
         clientId = crypto.randomBytes(6).toString('hex');
         room.clients.set(clientId, ws);
         if (room.host && room.host.readyState === WebSocket.OPEN) {
-          safeSend(ws, { type: 'connected', clientId });
+          safeSend(ws, { type: 'connected', clientId, localUrl: room.localUrl || null });
           safeSend(room.host, { type: 'client-connect', clientId });
         } else {
           safeSend(ws, { type: 'error', reason: 'host-unavailable' });
@@ -259,23 +316,26 @@ wss.on('connection', (ws, req) => {
 
     // ── Client → Host forwarding ──
     if (role === 'client') {
-      const room = getRoom(token);
-      if (!room) return;
+      const room = rooms.get(token);
+      if (!room || !room.host) return;
+      // Verify this client actually belongs to this room
+      if (!room.clients.has(clientId)) { ws.terminate(); return; }
       safeSend(room.host, JSON.stringify({ type: 'client-message', clientId, data: data.toString() }));
       return;
     }
 
     // ── Host → Client forwarding ──
     if (role === 'host') {
-      const room = getRoom(token);
+      const room = rooms.get(token);
       if (!room) return;
       if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
+      // Only forward to clients that belong to THIS room
+      const client = room.clients.get(msg.clientId);
+      if (!client) return;
       if (msg.type === 'host-message') {
-        const client = room.clients.get(msg.clientId);
         if (typeof msg.data === 'string') safeSend(client, msg.data);
       } else if (msg.type === 'host-close') {
-        const client = room.clients.get(msg.clientId);
-        if (client) client.close();
+        client.close();
       }
     }
   });

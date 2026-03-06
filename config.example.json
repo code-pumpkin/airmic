@@ -8,9 +8,11 @@
   "relayUrl": "",
   "relaySecret": "",
   "relayRejectUnauthorized": true,
+  "relayServers": [
+    { "name": "VoiceBridge Cloud", "url": "wss://voicebridge.returnfeed.com:4001", "secret": "" }
+  ],
   "aiEnabled": false,
   "aiProvider": "openai",
   "aiModel": "",
-  "aiApiKey": "",
   "aiPrompt": "You are a transcription assistant. Clean up and summarize the following spoken text into clear, concise written prose. Preserve the meaning exactly. Output only the improved text, nothing else."
 }

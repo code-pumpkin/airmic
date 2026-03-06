@@ -2,4 +2,13 @@ node_modules/
 certs/
 sessions.json
 config.json
+.env
 *-session.md
+bun.lock
+.vscode/
+.kiro/
+src/
+website/
+tsconfig.json
+awsDeployment.md
+abc

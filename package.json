@@ -1,15 +1,31 @@
 {
-  "name": "wirelessmicinput",
+  "name": "voicebridge",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node server.js"
+  "description": "Turn your phone into a wireless microphone — speech-to-text typed into your desktop via WebSocket",
+  "main": "server.js",
+  "bin": {
+    "voicebridge": "./server.js"
   },
-  "keywords": [],
+  "files": [
+    "server.js",
+    "server.test.js",
+    "public/",
+    "gen-cert.sh",
+    "config.example.json",
+    ".env.example"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "headless": "node server.js --headless",
+    "test": "node server.test.js"
+  },
+  "keywords": ["voice", "microphone", "speech-to-text", "wireless", "tui", "websocket", "qrcode"],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.76.0",
     "@google/generative-ai": "^0.24.1",
