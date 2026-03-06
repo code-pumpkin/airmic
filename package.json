@@ -1,6 +1,6 @@
 {
   "name": "@code-pumpkin/voicebridge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Turn your phone into a wireless microphone — speech-to-text typed into your desktop via WebSocket",
   "main": "server.js",
   "bin": {
