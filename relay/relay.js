@@ -74,6 +74,7 @@ function cleanRoom(token) {
 
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
+app.disable('x-powered-by');
 
 // ─── HTTP rate limiting (per IP, 60 req/min) ─────────────────────────────────
 const httpRates = new Map();
@@ -108,10 +109,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Read index.html fresh each time — ensures deploys take effect immediately
+// Cache index.html in memory — reload every 60s to pick up deploys
+let _indexHtmlCache = null;
+let _indexHtmlCacheTime = 0;
+const INDEX_CACHE_TTL = 60000;
 function getIndexHtml() {
+  const now = Date.now();
+  if (_indexHtmlCache && now - _indexHtmlCacheTime < INDEX_CACHE_TTL) return _indexHtmlCache;
   const html = path.join(PUBLIC, 'index.html');
-  try { return fs.readFileSync(html, 'utf8'); } catch { return null; }
+  try { _indexHtmlCache = fs.readFileSync(html, 'utf8'); _indexHtmlCacheTime = now; return _indexHtmlCache; } catch { return null; }
 }
 
 app.get('/health', (req, res) => {

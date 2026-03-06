@@ -364,7 +364,15 @@
     const MAX_RETRIES = 15;
 
     function setConnectStatus(msg, step) {
-      connectStatus.innerHTML = msg + (step ? `<span class="step">${step}</span>` : '');
+      connectStatus.textContent = '';
+      const msgNode = document.createTextNode(msg);
+      connectStatus.appendChild(msgNode);
+      if (step) {
+        const span = document.createElement('span');
+        span.className = 'step';
+        span.textContent = step;
+        connectStatus.appendChild(span);
+      }
     }
 
     function showConnectError(msg) {

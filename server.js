@@ -248,6 +248,7 @@ function getVoiceCommands() {
 // ─── Server setup ─────────────────────────────────────────────────────────────
 
 const app = express();
+app.disable('x-powered-by');
 
 // ─── HTTP rate limiting (per IP, 60 req/min) ─────────────────────────────────
 const httpRates = new Map();
