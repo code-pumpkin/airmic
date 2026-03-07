@@ -134,6 +134,23 @@ function initConfig() {
   if (typeof config.bindAddress !== 'string') config.bindAddress = '';
   config.bindAddress = config.bindAddress.slice(0, 100);
   if (typeof config.relayUrl !== 'string') config.relayUrl = '';
+
+  // Migrate old voicebridge relay URLs
+  let migrated = false;
+  if (config.relayUrl.includes('voicebridge.returnfeed.com')) {
+    config.relayUrl = config.relayUrl.replace('voicebridge.returnfeed.com', 'amrelay1.returnfeed.com');
+    migrated = true;
+  }
+  if (Array.isArray(config.relayServers)) {
+    for (const s of config.relayServers) {
+      if (s && typeof s.url === 'string' && s.url.includes('voicebridge.returnfeed.com')) {
+        s.url = s.url.replace('voicebridge.returnfeed.com', 'amrelay1.returnfeed.com');
+        if (s.name === 'VoiceBridge Cloud') s.name = 'AirMic Cloud';
+        migrated = true;
+      }
+    }
+  }
+  if (migrated) saveConfig(config);
   if (typeof config.relaySecret !== 'string') config.relaySecret = '';
   config.relayUrl    = config.relayUrl.slice(0, 500);
   config.relaySecret = config.relaySecret.slice(0, 200);

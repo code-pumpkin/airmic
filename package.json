@@ -1,6 +1,6 @@
 {
   "name": "airmic",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "Turn your phone into a wireless microphone for your desktop — real-time speech-to-text typed into any focused window via WebSocket. Works over local WiFi or internet relay. Supports Linux, macOS, and Windows. AI-powered text cleanup with OpenAI, Anthropic, and Google. No app install needed — phone UI runs in the browser.",
   "main": "server.js",
   "bin": {
